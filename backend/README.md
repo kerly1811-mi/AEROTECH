@@ -1,7 +1,6 @@
 # ✈️ AeroTech — Sistema Distribuido de Reservas de Vuelos
 
-Aplicación distribuida basada en **Arquitectura Orientada a Servicios (SOA)** para la gestión de reservas de vuelos.
-Desarrollada para la **APE 4 – Aplicaciones Distribuidas**, Universidad Técnica de Ambato (FISEI).
+Aplicación distribuida para la gestión de reservas de vuelos, desarrollada para la **APE 4 – Aplicaciones Distribuidas**, Universidad Técnica de Ambato (FISEI).
 
 ---
 
@@ -29,11 +28,12 @@ Desarrollada para la **APE 4 – Aplicaciones Distribuidas**, Universidad Técni
 ```
 APE4-PRACTICA/
 ├── backend/
-│   ├── app.py            # Endpoints de la API REST
-│   ├── database.py       # Clase Database: conexión y consultas
-│   ├── seguridad.py      # Clase Seguridad: hash, JWT, expiración, permisos
-│   ├── vuelos.py         # Clase VueloService
-│   ├── reservas.py       # Clase ReservaService (concurrencia + XML)
+│   ├── app.py                     # Rutas de la API REST
+│   ├── database_service.py        # DatabaseService: conexión y consultas
+│   ├── autenticacion_service.py   # AutenticacionService: login, JWT, expiración, permisos
+│   ├── usuario_service.py         # UsuarioService: registro de usuarios
+│   ├── vuelo_service.py           # VueloService: consulta y gestión de vuelos
+│   ├── reserva_service.py         # ReservaService: reservas, concurrencia y comprobante XML
 │   └── requirements.txt
 └── README.md
 ```
@@ -224,7 +224,7 @@ Verificar: `http://127.0.0.1:5000/api/health`
 | Start Command | `gunicorn app:app` |
 | Región | Oregon (US West) |
 
-**URL de la API:** `https://aerotech-api.onrender.com`
+**URL de la API:** `https://aerotech-api-iqxa.onrender.com`
 
 > En el plan gratuito, el servicio se suspende por inactividad; la primera petición puede tardar ~50 s.
 
@@ -235,6 +235,6 @@ Verificar: `http://127.0.0.1:5000/api/health`
 | Integrante | Responsabilidad |
 |---|---|
 | Kerly Chicaiza | Backend Flask, base de datos Supabase, seguridad y despliegue |
-| _Compañera_ | Cliente Flutter, pruebas y documentación |
+| Mateo Auz | Cliente Flutter, pruebas y documentación |
 
 **Asignatura:** Aplicaciones Distribuidas · **Carrera:** Software · **UTA – FISEI** · 2026
