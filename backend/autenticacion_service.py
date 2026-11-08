@@ -6,7 +6,7 @@ from flask import request, jsonify, g
 from werkzeug.security import generate_password_hash, check_password_hash
 
 
-class Seguridad:
+class AutenticacionService:
     def __init__(self, db):
         self.db = db
         self.secret = os.getenv("JWT_SECRET")
@@ -41,6 +41,48 @@ class Seguridad:
 
     def revocar_token(self, token):
         self.db.execute("UPDATE tokens SET estado = 'revocado' WHERE token = %s", (token,))
+
+    def login(self, data):
+        if not data or not data.get("correo") or not data.get("password"):
+            return {"error": "Correo y contraseña son obligatorios"}, 400
+
+        usuario = self.db.fetch_one("""
+            SELECT u.id, u.nombre, u.correo, u.password_hash, u.activo, u.rol_id, r.nombre AS rol
+            FROM usuarios u JOIN roles r ON r.id = u.rol_id
+            WHERE u.correo = %s
+        """, (data["correo"].strip().lower(),))
+
+        if not usuario or not self.verificar_password(data["password"], usuario["password_hash"]):
+            return {"error": "Credenciales inválidas"}, 401
+        if not usuario["activo"]:
+            return {"error": "Usuario desactivado"}, 401
+
+        token, expiracion = self.generar_token(usuario)
+        return {
+            "mensaje": "Login correcto",
+            "token": token,
+            "expiracion": expiracion,
+            "usuario": {
+                "id": usuario["id"],
+                "nombre": usuario["nombre"],
+                "correo": usuario["correo"],
+                "rol": usuario["rol"],
+                "permisos": self.obtener_permisos(usuario["rol_id"])
+            }
+        }, 200
+
+    def logout(self, token):
+        self.revocar_token(token)
+        return {"mensaje": "Sesión cerrada"}, 200
+
+    def perfil(self, usuario, permisos):
+        return {
+            "id": usuario["id"],
+            "nombre": usuario["nombre"],
+            "correo": usuario["correo"],
+            "rol": usuario["rol"],
+            "permisos": permisos
+        }, 200
 
     def token_requerido(self, permiso=None):
         def decorador(f):

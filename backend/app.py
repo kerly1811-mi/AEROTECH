@@ -4,10 +4,11 @@ from flask import Flask, request, jsonify, g, Response
 from flask.json.provider import DefaultJSONProvider
 from flask_cors import CORS
 from werkzeug.exceptions import HTTPException
-from database import Database
-from seguridad import Seguridad
-from vuelos import VueloService
-from reservas import ReservaService
+from database_service import DatabaseService
+from autenticacion_service import AutenticacionService
+from usuario_service import UsuarioService
+from vuelo_service import VueloService
+from reserva_service import ReservaService
 
 
 class JSONProvider(DefaultJSONProvider):
@@ -25,10 +26,11 @@ app = Flask(__name__)
 app.json = JSONProvider(app)
 CORS(app)
 
-db = Database()
-seguridad = Seguridad(db)
-vuelos = VueloService(db)
-reservas = ReservaService(db)
+db = DatabaseService()
+autenticacion_service = AutenticacionService(db)
+usuario_service = UsuarioService(db, autenticacion_service)
+vuelo_service = VueloService(db)
+reserva_service = ReservaService(db)
 
 
 @app.route("/")
@@ -44,143 +46,90 @@ def health():
 
 @app.route("/api/usuarios/registro", methods=["POST"])
 def registro():
-    data = request.get_json(silent=True)
-    if not data:
-        return {"error": "Debe enviar un JSON"}, 400
-    if not data.get("nombre") or not data.get("correo") or not data.get("password"):
-        return {"error": "nombre, correo y password son obligatorios"}, 400
-    if len(data["password"]) < 6:
-        return {"error": "La contraseña debe tener mínimo 6 caracteres"}, 400
-
-    correo = data["correo"].strip().lower()
-    if db.fetch_one("SELECT id FROM usuarios WHERE correo = %s", (correo,)):
-        return {"error": "El correo ya está registrado"}, 409
-
-    nuevo = db.execute("""
-        INSERT INTO usuarios (nombre, correo, password_hash, rol_id)
-        VALUES (%s, %s, %s, (SELECT id FROM roles WHERE nombre = 'cliente'))
-        RETURNING id, nombre, correo
-    """, (data["nombre"].strip(), correo, seguridad.hash_password(data["password"])), returning=True)
-
-    return {"mensaje": "Usuario registrado", "usuario": nuevo, "rol": "cliente"}, 201
+    return usuario_service.registrar(request.get_json(silent=True))
 
 
 @app.route("/api/auth/login", methods=["POST"])
 def login():
-    data = request.get_json(silent=True)
-    if not data or not data.get("correo") or not data.get("password"):
-        return {"error": "Correo y contraseña son obligatorios"}, 400
-
-    usuario = db.fetch_one("""
-        SELECT u.id, u.nombre, u.correo, u.password_hash, u.activo, u.rol_id, r.nombre AS rol
-        FROM usuarios u JOIN roles r ON r.id = u.rol_id
-        WHERE u.correo = %s
-    """, (data["correo"].strip().lower(),))
-
-    if not usuario or not seguridad.verificar_password(data["password"], usuario["password_hash"]):
-        return {"error": "Credenciales inválidas"}, 401
-    if not usuario["activo"]:
-        return {"error": "Usuario desactivado"}, 401
-
-    token, expiracion = seguridad.generar_token(usuario)
-
-    return {
-        "mensaje": "Login correcto",
-        "token": token,
-        "expiracion": expiracion,
-        "usuario": {
-            "id": usuario["id"],
-            "nombre": usuario["nombre"],
-            "correo": usuario["correo"],
-            "rol": usuario["rol"],
-            "permisos": seguridad.obtener_permisos(usuario["rol_id"])
-        }
-    }, 200
+    return autenticacion_service.login(request.get_json(silent=True))
 
 
 @app.route("/api/auth/logout", methods=["POST"])
-@seguridad.token_requerido()
+@autenticacion_service.token_requerido()
 def logout():
-    seguridad.revocar_token(g.token)
-    return {"mensaje": "Sesión cerrada"}, 200
+    return autenticacion_service.logout(g.token)
 
 
 @app.route("/api/auth/perfil", methods=["GET"])
-@seguridad.token_requerido()
+@autenticacion_service.token_requerido()
 def perfil():
-    return {
-        "id": g.usuario["id"],
-        "nombre": g.usuario["nombre"],
-        "correo": g.usuario["correo"],
-        "rol": g.usuario["rol"],
-        "permisos": g.permisos
-    }, 200
+    return autenticacion_service.perfil(g.usuario, g.permisos)
 
 
 @app.route("/api/vuelos", methods=["GET"])
-@seguridad.token_requerido("vuelos.ver")
+@autenticacion_service.token_requerido("vuelos.ver")
 def listar_vuelos():
-    return vuelos.listar(request.args.get("origen"), request.args.get("destino"), request.args.get("fecha"))
+    return vuelo_service.listar(request.args.get("origen"), request.args.get("destino"), request.args.get("fecha"))
 
 
 @app.route("/api/vuelos/<int:vuelo_id>", methods=["GET"])
-@seguridad.token_requerido("vuelos.ver")
+@autenticacion_service.token_requerido("vuelos.ver")
 def obtener_vuelo(vuelo_id):
-    return vuelos.obtener(vuelo_id)
+    return vuelo_service.obtener(vuelo_id)
 
 
 @app.route("/api/vuelos", methods=["POST"])
-@seguridad.token_requerido("vuelos.crear")
+@autenticacion_service.token_requerido("vuelos.crear")
 def crear_vuelo():
-    return vuelos.crear(request.get_json(silent=True))
+    return vuelo_service.crear(request.get_json(silent=True))
 
 
 @app.route("/api/vuelos/<int:vuelo_id>", methods=["PUT"])
-@seguridad.token_requerido("vuelos.editar")
+@autenticacion_service.token_requerido("vuelos.editar")
 def actualizar_vuelo(vuelo_id):
-    return vuelos.actualizar(vuelo_id, request.get_json(silent=True))
+    return vuelo_service.actualizar(vuelo_id, request.get_json(silent=True))
 
 
 @app.route("/api/vuelos/<int:vuelo_id>", methods=["DELETE"])
-@seguridad.token_requerido("vuelos.eliminar")
+@autenticacion_service.token_requerido("vuelos.eliminar")
 def eliminar_vuelo(vuelo_id):
-    return vuelos.eliminar(vuelo_id)
+    return vuelo_service.eliminar(vuelo_id)
 
 
 @app.route("/api/reservas", methods=["POST"])
-@seguridad.token_requerido("reservas.crear")
+@autenticacion_service.token_requerido("reservas.crear")
 def crear_reserva():
-    return reservas.crear(g.usuario["id"], request.get_json(silent=True))
+    return reserva_service.crear(g.usuario["id"], request.get_json(silent=True))
 
 
 @app.route("/api/reservas/mis-reservas", methods=["GET"])
-@seguridad.token_requerido("reservas.ver_propias")
+@autenticacion_service.token_requerido("reservas.ver_propias")
 def mis_reservas():
-    return reservas.listar_propias(g.usuario["id"])
+    return reserva_service.listar_propias(g.usuario["id"])
 
 
 @app.route("/api/reservas", methods=["GET"])
-@seguridad.token_requerido("reservas.ver_todas")
+@autenticacion_service.token_requerido("reservas.ver_todas")
 def todas_reservas():
-    return reservas.listar_todas()
+    return reserva_service.listar_todas()
 
 
 @app.route("/api/reservas/<int:reserva_id>", methods=["GET"])
-@seguridad.token_requerido()
+@autenticacion_service.token_requerido()
 def obtener_reserva(reserva_id):
-    return reservas.obtener(reserva_id, g.usuario, g.permisos)
+    return reserva_service.obtener(reserva_id, g.usuario, g.permisos)
 
 
 @app.route("/api/reservas/<int:reserva_id>/cancelar", methods=["PUT"])
-@seguridad.token_requerido()
+@autenticacion_service.token_requerido()
 def cancelar_reserva(reserva_id):
-    return reservas.cancelar(reserva_id, request.get_json(silent=True), g.usuario, g.permisos)
+    return reserva_service.cancelar(reserva_id, request.get_json(silent=True), g.usuario, g.permisos)
 
 
 @app.route("/api/reservas/<int:reserva_id>/comprobante", methods=["GET"])
-@seguridad.token_requerido()
+@autenticacion_service.token_requerido()
 def comprobante(reserva_id):
-    respuesta, codigo = reservas.comprobante_xml(reserva_id, g.usuario, g.permisos)
+    respuesta, codigo = reserva_service.comprobante_xml(reserva_id, g.usuario, g.permisos)
     if codigo != 200:
         return respuesta, codigo
     return Response(respuesta, status=200, mimetype="application/xml")
