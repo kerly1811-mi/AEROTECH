@@ -35,7 +35,7 @@ reserva_service = ReservaService(db)
 
 @app.route("/")
 def inicio():
-    return "Servicio AeroTech SOA funcionando"
+    return "API AeroTech funcionando"
 
 
 @app.route("/api/health")
