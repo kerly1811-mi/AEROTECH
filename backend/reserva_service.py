@@ -1,9 +1,5 @@
 import os
 import time
-import datetime
-import xml.etree.ElementTree as ET
-from decimal import Decimal
-from xml.dom import minidom
 
 
 class ReservaService:
@@ -16,15 +12,10 @@ class ReservaService:
         JOIN usuarios u ON u.id = r.usuario_id
     """
 
-    def __init__(self, db):
+    def __init__(self, db, factura):
         self.db = db
-        self.iva = Decimal("0.15")
+        self.factura = factura
         self.demora = int(os.getenv("DEMORA_SEGUNDOS", 0))
-
-    def calcular(self, precio, cantidad):
-        subtotal = (Decimal(precio) * cantidad).quantize(Decimal("0.01"))
-        iva = (subtotal * self.iva).quantize(Decimal("0.01"))
-        return subtotal, iva, subtotal + iva
 
     def crear(self, usuario_id, data):
         if not data:
@@ -71,7 +62,7 @@ class ReservaService:
                         "vuelo_actual": cursor.fetchone()
                     }, 409
 
-                subtotal, iva, total = self.calcular(vuelo["precio"], cantidad)
+                subtotal, iva, total = self.factura.calcular(vuelo["precio"], cantidad)
                 cursor.execute("""
                     INSERT INTO reservas (usuario_id, vuelo_id, cantidad_asientos, total)
                     VALUES (%s, %s, %s, %s)
@@ -102,14 +93,11 @@ class ReservaService:
         reservas = self.db.fetch_all(self.CONSULTA + " ORDER BY r.fecha_reserva DESC")
         return {"total": len(reservas), "reservas": reservas}, 200
 
-    def puede_ver(self, reserva, usuario, permisos):
-        return reserva["usuario_id"] == usuario["id"] or "reservas.ver_todas" in permisos
-
     def obtener(self, reserva_id, usuario, permisos):
         reserva = self.db.fetch_one(self.CONSULTA + " WHERE r.id = %s", (reserva_id,))
         if not reserva:
             return {"error": "Reserva no encontrada"}, 404
-        if not self.puede_ver(reserva, usuario, permisos):
+        if reserva["usuario_id"] != usuario["id"] and "reservas.ver_todas" not in permisos:
             return {"error": "No tiene permiso para ver esta reserva"}, 403
         return reserva, 200
 
@@ -164,36 +152,3 @@ class ReservaService:
             raise
         finally:
             conn.close()
-
-    def comprobante_xml(self, reserva_id, usuario, permisos):
-        reserva, codigo = self.obtener(reserva_id, usuario, permisos)
-        if codigo != 200:
-            return reserva, codigo
-
-        subtotal, iva, total = self.calcular(reserva["precio"], reserva["cantidad_asientos"])
-
-        factura = ET.Element("factura")
-        ET.SubElement(factura, "numero").text = f"F001-{reserva['id']:06d}"
-        ET.SubElement(factura, "fecha").text = datetime.date.today().isoformat()
-
-        cliente = ET.SubElement(factura, "cliente")
-        ET.SubElement(cliente, "nombre").text = reserva["cliente"]
-        ET.SubElement(cliente, "correo").text = reserva["correo"]
-
-        vuelo = ET.SubElement(factura, "vuelo")
-        ET.SubElement(vuelo, "origen").text = reserva["origen"]
-        ET.SubElement(vuelo, "destino").text = reserva["destino"]
-        ET.SubElement(vuelo, "fecha").text = reserva["fecha_vuelo"].isoformat()
-        ET.SubElement(vuelo, "hora_salida").text = reserva["hora_salida"].strftime("%H:%M")
-
-        detalle = ET.SubElement(factura, "detalle")
-        ET.SubElement(detalle, "pasajeros").text = str(reserva["cantidad_asientos"])
-        ET.SubElement(detalle, "precio_unitario").text = f"{reserva['precio']:.2f}"
-
-        ET.SubElement(factura, "subtotal").text = f"{subtotal:.2f}"
-        ET.SubElement(factura, "iva").text = f"{iva:.2f}"
-        ET.SubElement(factura, "total").text = f"{total:.2f}"
-        ET.SubElement(factura, "estado").text = reserva["estado"]
-
-        xml = minidom.parseString(ET.tostring(factura, encoding="unicode")).toprettyxml(indent="  ")
-        return xml, 200

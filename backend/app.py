@@ -8,6 +8,7 @@ from database_service import DatabaseService
 from autenticacion_service import AutenticacionService
 from usuario_service import UsuarioService
 from vuelo_service import VueloService
+from factura_service import FacturaService
 from reserva_service import ReservaService
 
 
@@ -30,7 +31,8 @@ db = DatabaseService()
 autenticacion_service = AutenticacionService(db)
 usuario_service = UsuarioService(db, autenticacion_service)
 vuelo_service = VueloService(db)
-reserva_service = ReservaService(db)
+factura_service = FacturaService()
+reserva_service = ReservaService(db, factura_service)
 
 
 @app.route("/")
@@ -47,6 +49,30 @@ def health():
 @app.route("/api/usuarios/registro", methods=["POST"])
 def registro():
     return usuario_service.registrar(request.get_json(silent=True))
+
+
+@app.route("/api/usuarios", methods=["GET"])
+@autenticacion_service.token_requerido("usuarios.ver")
+def listar_usuarios():
+    return usuario_service.listar()
+
+
+@app.route("/api/usuarios/empleados", methods=["POST"])
+@autenticacion_service.token_requerido("usuarios.gestionar")
+def crear_empleado():
+    return usuario_service.crear_empleado(request.get_json(silent=True))
+
+
+@app.route("/api/usuarios/<int:usuario_id>/rol", methods=["PUT"])
+@autenticacion_service.token_requerido("usuarios.gestionar")
+def cambiar_rol(usuario_id):
+    return usuario_service.cambiar_rol(usuario_id, request.get_json(silent=True), g.usuario)
+
+
+@app.route("/api/usuarios/<int:usuario_id>/estado", methods=["PUT"])
+@autenticacion_service.token_requerido("usuarios.gestionar")
+def cambiar_estado(usuario_id):
+    return usuario_service.cambiar_estado(usuario_id, request.get_json(silent=True), g.usuario)
 
 
 @app.route("/api/auth/login", methods=["POST"])
@@ -129,10 +155,16 @@ def cancelar_reserva(reserva_id):
 @app.route("/api/reservas/<int:reserva_id>/comprobante", methods=["GET"])
 @autenticacion_service.token_requerido()
 def comprobante(reserva_id):
-    respuesta, codigo = reserva_service.comprobante_xml(reserva_id, g.usuario, g.permisos)
+    reserva, codigo = reserva_service.obtener(reserva_id, g.usuario, g.permisos)
     if codigo != 200:
-        return respuesta, codigo
-    return Response(respuesta, status=200, mimetype="application/xml")
+        return reserva, codigo
+    numero, xml = factura_service.generar_xml(reserva)
+    return Response(
+        xml,
+        status=200,
+        mimetype="application/xml",
+        headers={"Content-Disposition": f"inline; filename={numero}.xml"}
+    )
 
 
 @app.errorhandler(Exception)
