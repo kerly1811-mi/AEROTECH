@@ -8,6 +8,7 @@ from database_service import DatabaseService
 from autenticacion_service import AutenticacionService
 from usuario_service import UsuarioService
 from vuelo_service import VueloService
+from asiento_service import AsientoService
 from factura_service import FacturaService
 from reserva_service import ReservaService
 
@@ -31,8 +32,9 @@ db = DatabaseService()
 autenticacion_service = AutenticacionService(db)
 usuario_service = UsuarioService(db, autenticacion_service)
 vuelo_service = VueloService(db)
+asiento_service = AsientoService(db)
 factura_service = FacturaService()
-reserva_service = ReservaService(db, factura_service)
+reserva_service = ReservaService(db, factura_service, asiento_service)
 
 
 @app.route("/")
@@ -55,18 +57,6 @@ def registro():
 @autenticacion_service.token_requerido("usuarios.ver")
 def listar_usuarios():
     return usuario_service.listar()
-
-
-@app.route("/api/usuarios/empleados", methods=["POST"])
-@autenticacion_service.token_requerido("usuarios.gestionar")
-def crear_empleado():
-    return usuario_service.crear_empleado(request.get_json(silent=True))
-
-
-@app.route("/api/usuarios/<int:usuario_id>/rol", methods=["PUT"])
-@autenticacion_service.token_requerido("usuarios.gestionar")
-def cambiar_rol(usuario_id):
-    return usuario_service.cambiar_rol(usuario_id, request.get_json(silent=True), g.usuario)
 
 
 @app.route("/api/usuarios/<int:usuario_id>/estado", methods=["PUT"])
@@ -102,6 +92,12 @@ def listar_vuelos():
 @autenticacion_service.token_requerido("vuelos.ver")
 def obtener_vuelo(vuelo_id):
     return vuelo_service.obtener(vuelo_id)
+
+
+@app.route("/api/vuelos/<int:vuelo_id>/asientos", methods=["GET"])
+@autenticacion_service.token_requerido("vuelos.ver")
+def mapa_asientos(vuelo_id):
+    return asiento_service.mapa(vuelo_id)
 
 
 @app.route("/api/vuelos", methods=["POST"])

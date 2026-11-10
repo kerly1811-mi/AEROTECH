@@ -22,3 +22,35 @@ class UsuarioService:
         """, (data["nombre"].strip(), correo, self.autenticacion.hash_password(data["password"])), returning=True)
 
         return {"mensaje": "Usuario registrado", "usuario": nuevo, "rol": "cliente"}, 201
+
+    def listar(self):
+        usuarios = self.db.fetch_all("""
+            SELECT u.id, u.nombre, u.correo, r.nombre AS rol, u.activo, u.fecha_registro,
+                   (SELECT COUNT(*) FROM reservas re WHERE re.usuario_id = u.id AND re.estado = 'confirmada') AS reservas_activas
+            FROM usuarios u JOIN roles r ON r.id = u.rol_id
+            ORDER BY r.nombre, u.nombre
+        """)
+        return {"total": len(usuarios), "usuarios": usuarios}, 200
+
+    def cambiar_estado(self, usuario_id, data, usuario_actual):
+        if data is None or not isinstance(data.get("activo"), bool):
+            return {"error": "El campo activo es obligatorio (true o false)"}, 400
+        if usuario_id == usuario_actual["id"]:
+            return {"error": "No puede cambiar su propio estado"}, 409
+
+        usuario = self.db.execute("""
+            UPDATE usuarios SET activo = %s
+            WHERE id = %s
+            RETURNING id, nombre, correo, activo
+        """, (data["activo"], usuario_id), returning=True)
+        if not usuario:
+            return {"error": "Usuario no encontrado"}, 404
+
+        if not data["activo"]:
+            self.db.execute("""
+                UPDATE tokens SET estado = 'revocado'
+                WHERE usuario_id = %s AND estado = 'activo'
+            """, (usuario_id,))
+
+        mensaje = "Usuario activado" if data["activo"] else "Usuario desactivado"
+        return {"mensaje": mensaje, "usuario": usuario}, 200

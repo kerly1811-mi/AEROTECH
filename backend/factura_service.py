@@ -7,13 +7,25 @@ class FacturaService:
     def __init__(self):
         self.iva = Decimal("0.15")
 
-    def calcular(self, precio, cantidad):
-        subtotal = (Decimal(precio) * cantidad).quantize(Decimal("0.01"))
+    def calcular(self, precios):
+        subtotal = sum((Decimal(str(p)) for p in precios), Decimal("0")).quantize(Decimal("0.01"))
         iva = (subtotal * self.iva).quantize(Decimal("0.01"))
         return subtotal, iva, subtotal + iva
 
+    def detalle(self, reserva):
+        if reserva.get("asientos"):
+            return [
+                (f"Asiento {a['asiento']} - {a['tipo'].capitalize()}", Decimal(str(a["precio"])))
+                for a in reserva["asientos"]
+            ]
+        return [
+            (f"Boleto {reserva['origen']} - {reserva['destino']}", Decimal(str(reserva["precio"])))
+            for _ in range(reserva["cantidad_asientos"])
+        ]
+
     def generar_xml(self, reserva):
-        subtotal, iva, total = self.calcular(reserva["precio"], reserva["cantidad_asientos"])
+        lineas = self.detalle(reserva)
+        subtotal, iva, total = self.calcular([precio for _, precio in lineas])
         numero = f"001-001-{reserva['id']:09d}"
 
         factura = ET.Element("factura")
@@ -33,11 +45,12 @@ class FacturaService:
         ET.SubElement(vuelo, "HoraSalida").text = reserva["hora_salida"].strftime("%H:%M")
 
         detalle = ET.SubElement(factura, "detalle")
-        producto = ET.SubElement(detalle, "producto")
-        ET.SubElement(producto, "Nombre").text = f"Boleto {reserva['origen']} - {reserva['destino']}"
-        ET.SubElement(producto, "Cantidad").text = str(reserva["cantidad_asientos"])
-        ET.SubElement(producto, "PrecioUnitario").text = f"{reserva['precio']:.2f}"
-        ET.SubElement(producto, "SubTotal").text = f"{subtotal:.2f}"
+        for nombre, precio in lineas:
+            producto = ET.SubElement(detalle, "producto")
+            ET.SubElement(producto, "Nombre").text = nombre
+            ET.SubElement(producto, "Cantidad").text = "1"
+            ET.SubElement(producto, "PrecioUnitario").text = f"{precio:.2f}"
+            ET.SubElement(producto, "SubTotal").text = f"{precio:.2f}"
 
         totales = ET.SubElement(factura, "totales")
         ET.SubElement(totales, "SubTotal").text = f"{subtotal:.2f}"
