@@ -1,3 +1,4 @@
+import 'package:aerotech_app/widgets/boton_inicio.dart';
 import 'package:aerotech_app/widgets/boton_cerrar_sesion.dart';
 import 'package:aerotech_app/config.dart';
 import 'package:aerotech_app/models/vuelo.dart';
@@ -107,6 +108,7 @@ class _GestionVuelosPageState extends State<GestionVuelosPage> {
             onPressed: _reload,
             tooltip: 'Recargar',
           ),
+          const BotonInicio(),
           const BotonCerrarSesion(),
         ],
       ),

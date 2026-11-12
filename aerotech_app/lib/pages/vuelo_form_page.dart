@@ -1,4 +1,5 @@
 import 'package:aerotech_app/widgets/boton_cerrar_sesion.dart';
+import 'package:aerotech_app/widgets/boton_inicio.dart';
 import 'package:aerotech_app/models/aeropuerto.dart';
 import 'package:aerotech_app/models/vuelo.dart';
 import 'package:aerotech_app/pages/login_page.dart';
@@ -24,6 +25,8 @@ class _VueloFormPageState extends State<VueloFormPage> {
   final llegadaController = TextEditingController();
   final precioController = TextEditingController();
   final filasController = TextEditingController();
+  final filasEjecutivaController = TextEditingController();
+  final precioEjecutivaController = TextEditingController();
 
   final VueloService vueloService = VueloService();
 
@@ -89,6 +92,8 @@ class _VueloFormPageState extends State<VueloFormPage> {
     llegadaController.text = vuelo.horaLlegada;
     precioController.text = vuelo.precio.toStringAsFixed(2);
     filasController.text = vuelo.filas.toString();
+    filasEjecutivaController.text = vuelo.filasEjecutiva.toString();
+    precioEjecutivaController.text = vuelo.precioEjecutiva.toStringAsFixed(2);
   }
 
   @override
@@ -98,6 +103,8 @@ class _VueloFormPageState extends State<VueloFormPage> {
     llegadaController.dispose();
     precioController.dispose();
     filasController.dispose();
+    filasEjecutivaController.dispose();
+    precioEjecutivaController.dispose();
     super.dispose();
   }
 
@@ -177,6 +184,29 @@ class _VueloFormPageState extends State<VueloFormPage> {
     return null;
   }
 
+  String? _validatePrecioEjecutiva(String? value) {
+    final error = _validatePrecio(value);
+    if (error != null) return error;
+    final ejecutiva = double.parse(value!.trim().replaceAll(',', '.'));
+    final economica = double.tryParse(precioController.text.trim().replaceAll(',', '.'));
+    if (economica != null && ejecutiva < economica) {
+      return 'No puede ser menor que el precio económico.';
+    }
+    return null;
+  }
+
+  String? _validateFilasEjecutiva(String? value) {
+    if (value == null || value.trim().isEmpty) {
+      return 'Ingrese 0 si no hay clase ejecutiva.';
+    }
+    final parsed = int.tryParse(value.trim());
+    if (parsed == null) return 'Ingrese un número entero.';
+    final filas = int.tryParse(filasController.text.trim());
+    if (parsed < 0) return 'No puede ser negativo.';
+    if (filas != null && parsed > filas) return 'No puede superar el total de filas.';
+    return null;
+  }
+
   Future<void> _handleConflict(ConflictException e) async {
     if (!mounted) return;
     final refresh = await showDialog<bool>(
@@ -233,6 +263,8 @@ class _VueloFormPageState extends State<VueloFormPage> {
       horaLlegada: llegadaController.text.trim(),
       precio: double.parse(precioController.text.trim().replaceAll(',', '.')),
       filas: int.parse(filasController.text.trim()),
+      filasEjecutiva: int.parse(filasEjecutivaController.text.trim()),
+      precioEjecutiva: double.parse(precioEjecutivaController.text.trim().replaceAll(',', '.')),
       asientosDisponibles: widget.vuelo?.asientosDisponibles ?? 0,
       version: _currentVersion,
     );
@@ -267,7 +299,7 @@ class _VueloFormPageState extends State<VueloFormPage> {
     return Scaffold(
       appBar: AppBar(
         title: Text(isEditing ? 'Editar vuelo' : 'Nuevo vuelo'),
-        actions: const [BotonCerrarSesion()],
+        actions: const [BotonInicio(), BotonCerrarSesion()],
       ),
       body: Center(
         child: SingleChildScrollView(
@@ -390,6 +422,34 @@ class _VueloFormPageState extends State<VueloFormPage> {
                       helperText: '6 asientos por fila (A B C | D E F), máximo 40 filas',
                     ),
                     validator: _validateFilas,
+                  ),
+                  const SizedBox(height: 15),
+                  TextFormField(
+                    controller: filasEjecutivaController,
+                    keyboardType: TextInputType.number,
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                    decoration: const InputDecoration(
+                      labelText: 'Filas de clase ejecutiva',
+                      prefixIcon: Icon(Icons.airline_seat_recline_extra),
+                      border: OutlineInputBorder(),
+                      helperText: 'Las primeras filas del avión. 0 = sin clase ejecutiva',
+                    ),
+                    validator: _validateFilasEjecutiva,
+                  ),
+                  const SizedBox(height: 15),
+                  TextFormField(
+                    controller: precioEjecutivaController,
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    inputFormatters: [
+                      FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]')),
+                    ],
+                    decoration: const InputDecoration(
+                      labelText: 'Precio clase ejecutiva',
+                      prefixIcon: Icon(Icons.attach_money),
+                      border: OutlineInputBorder(),
+                      helperText: 'Por asiento. El campo "Precio" es el de clase económica',
+                    ),
+                    validator: _validatePrecioEjecutiva,
                   ),
                   const SizedBox(height: 25),
                   SizedBox(

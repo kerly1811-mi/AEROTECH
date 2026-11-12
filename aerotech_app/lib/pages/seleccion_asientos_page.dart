@@ -1,17 +1,26 @@
-import 'package:aerotech_app/widgets/boton_cerrar_sesion.dart';
+import 'package:aerotech_app/widgets/boton_inicio.dart';
 import 'package:aerotech_app/models/asiento.dart';
-import 'package:aerotech_app/models/vuelo.dart';
-import 'package:aerotech_app/pages/comprobante_page.dart';
-import 'package:aerotech_app/pages/login_page.dart';
-import 'package:aerotech_app/services/api_service.dart';
-import 'package:aerotech_app/services/reserva_service.dart';
+import 'package:aerotech_app/models/clase.dart';
+import 'package:aerotech_app/models/tramo.dart';
 import 'package:aerotech_app/services/vuelo_service.dart';
+import 'package:aerotech_app/widgets/boton_cerrar_sesion.dart';
 import 'package:aerotech_app/widgets/error_view.dart';
 import 'package:flutter/material.dart';
 
+/// Mapa de asientos de un vuelo. Solo se pueden elegir asientos de la clase
+/// seleccionada y exactamente [cantidad] (los pasajeros que ocupan asiento).
+/// Al confirmar devuelve un [SeleccionTramo]; la reserva se crea en el resumen.
 class SeleccionAsientosPage extends StatefulWidget {
-  final Vuelo vuelo;
-  const SeleccionAsientosPage({super.key, required this.vuelo});
+  final TramoViaje tramo;
+  final int cantidad;
+  final String titulo;
+
+  const SeleccionAsientosPage({
+    super.key,
+    required this.tramo,
+    required this.cantidad,
+    this.titulo = 'Elige tus asientos',
+  });
 
   @override
   State<SeleccionAsientosPage> createState() => _SeleccionAsientosPageState();
@@ -19,15 +28,13 @@ class SeleccionAsientosPage extends StatefulWidget {
 
 class _SeleccionAsientosPageState extends State<SeleccionAsientosPage> {
   final VueloService vueloService = VueloService();
-  final ReservaService reservaService = ReservaService();
 
   late Future<MapaAsientos> futureMapa;
   final List<String> _seleccionados = [];
-  bool _isSaving = false;
 
-  static const int _maximo = 9;
-  static const double _iva = 0.15;
   static const double _tamano = 38;
+
+  Clase get _clase => widget.tramo.clase;
 
   @override
   void initState() {
@@ -37,8 +44,8 @@ class _SeleccionAsientosPageState extends State<SeleccionAsientosPage> {
 
   void _reload() {
     setState(() {
-      futureMapa = vueloService.getAsientos(widget.vuelo.id).then((mapa) {
-        _seleccionados.removeWhere(mapa.ocupado);
+      futureMapa = vueloService.getAsientos(widget.tramo.vuelo.id).then((mapa) {
+        _seleccionados.removeWhere((a) => mapa.ocupado(a) || mapa.clase(a) != _clase);
         return mapa;
       });
     });
@@ -55,25 +62,31 @@ class _SeleccionAsientosPageState extends State<SeleccionAsientosPage> {
     );
   }
 
-  int _numeroFila(String asiento) => int.parse(asiento.substring(0, asiento.length - 1));
-
-  void _ordenar() {
+  void _ordenar(MapaAsientos mapa) {
     _seleccionados.sort((a, b) {
-      final fila = _numeroFila(a).compareTo(_numeroFila(b));
+      final fila = mapa.fila(a).compareTo(mapa.fila(b));
       return fila != 0 ? fila : a.compareTo(b);
     });
   }
 
   void _alternar(MapaAsientos mapa, String asiento) {
     if (mapa.ocupado(asiento)) return;
+    if (mapa.clase(asiento) != _clase) {
+      _showMessage('Ese asiento es de clase ${mapa.clase(asiento).nombre}. Usted eligió ${_clase.nombre}.', isError: true);
+      return;
+    }
     setState(() {
       if (_seleccionados.contains(asiento)) {
         _seleccionados.remove(asiento);
-      } else if (_seleccionados.length >= _maximo) {
-        _showMessage('Puede seleccionar máximo $_maximo asientos por reserva.', isError: true);
+      } else if (_seleccionados.length >= widget.cantidad) {
+        _showMessage(
+          'Solo puede elegir ${widget.cantidad} ${widget.cantidad == 1 ? 'asiento' : 'asientos'} '
+          '(uno por pasajero).',
+          isError: true,
+        );
       } else {
         _seleccionados.add(asiento);
-        _ordenar();
+        _ordenar(mapa);
       }
     });
   }
@@ -84,163 +97,37 @@ class _SeleccionAsientosPageState extends State<SeleccionAsientosPage> {
 
   String _nombreTipo(String tipo) => tipo[0].toUpperCase() + tipo.substring(1);
 
-  Widget _fila(String texto, double valor, {bool negrita = false}) {
-    final estilo = TextStyle(fontWeight: negrita ? FontWeight.bold : FontWeight.normal);
-    return Row(
-      children: [
-        Text(texto, style: estilo),
-        const Spacer(),
-        Text('\$${valor.toStringAsFixed(2)}', style: estilo),
-      ],
-    );
-  }
-
-  Future<void> _confirmar(MapaAsientos mapa) async {
-    final subtotal = _subtotal(mapa);
-    final iva = subtotal * _iva;
-
-    final confirm = await showDialog<bool>(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => PopScope(
-        canPop: false,
-        child: AlertDialog(
-          title: const Text('Confirmar reserva'),
-          content: SizedBox(
-            width: 320,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '${mapa.vuelo.origen} → ${mapa.vuelo.destino}',
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                ),
-                Text('${mapa.vuelo.fecha}   ${mapa.vuelo.horaSalida} - ${mapa.vuelo.horaLlegada}'),
-                const Divider(),
-                ..._seleccionados.map(
-                  (a) => _fila('Asiento $a (${_nombreTipo(mapa.tipo(a))})', mapa.precio(a)),
-                ),
-                const Divider(),
-                _fila('Subtotal', subtotal),
-                _fila('IVA (15%)', iva),
-                _fila('Total', subtotal + iva, negrita: true),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('Volver'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('Confirmar'),
-            ),
-          ],
-        ),
-      ),
-    );
-
-    if (confirm != true) return;
-
-    setState(() => _isSaving = true);
-
-    try {
-      final resultado = await reservaService.crearReserva(
-        mapa.vuelo.id,
-        List<String>.from(_seleccionados),
-        mapa.vuelo.version,
-      );
-      await _mostrarExito(resultado);
-    } on SessionExpiredException catch (e) {
-      if (mounted) LoginPage.irAlLogin(context, e.message);
-    } on ConflictException catch (e) {
-      await _handleConflict(e);
-    } on ApiException catch (e) {
-      _showMessage(e.message, isError: true);
-    } catch (e) {
-      _showMessage('Ocurrió un error inesperado: $e', isError: true);
-    } finally {
-      if (mounted) setState(() => _isSaving = false);
+  int _libresEnClase(MapaAsientos mapa) {
+    var libres = 0;
+    for (var fila = 1; fila <= mapa.filas; fila++) {
+      if (mapa.vuelo.claseDeFila(fila) != _clase) continue;
+      for (final c in mapa.columnas) {
+        if (!mapa.ocupado('$fila$c')) libres++;
+      }
     }
+    return libres;
   }
 
-  Future<void> _mostrarExito(Map<String, dynamic> resultado) async {
-    if (!mounted) return;
-    final reservaId = (resultado['reserva_id'] as num).toInt();
-    final total = (resultado['total'] as num).toDouble();
-    final asientos = List<String>.from(resultado['asientos'] ?? _seleccionados);
-
-    final verComprobante = await showDialog<bool>(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        icon: const Icon(Icons.check_circle, color: Colors.green, size: 48),
-        title: const Text('Reserva confirmada'),
-        content: Text(
-          'Reserva #$reservaId\n'
-          'Asientos: ${asientos.join(', ')}\n'
-          'Total: \$${total.toStringAsFixed(2)}',
-          textAlign: TextAlign.center,
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cerrar'),
-          ),
-          FilledButton.icon(
-            onPressed: () => Navigator.pop(context, true),
-            icon: const Icon(Icons.receipt_long),
-            label: const Text('Ver comprobante'),
-          ),
-        ],
+  void _aceptar(MapaAsientos mapa) {
+    Navigator.pop(
+      context,
+      SeleccionTramo(
+        vuelo: mapa.vuelo,
+        clase: _clase,
+        asientos: List<String>.from(_seleccionados),
+        subtotal: _subtotal(mapa),
       ),
     );
-
-    if (!mounted) return;
-    if (verComprobante == true) {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => ComprobantePage(reservaId: reservaId)),
-      );
-    } else {
-      Navigator.pop(context, true);
-    }
-  }
-
-  Future<void> _handleConflict(ConflictException e) async {
-    if (!mounted) return;
-    await showDialog<void>(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => PopScope(
-        canPop: false,
-        child: AlertDialog(
-          icon: const Icon(Icons.warning_amber, color: Colors.orange, size: 48),
-          title: const Text('Asientos no disponibles'),
-          content: Text(
-            '${e.message}\n\n'
-            'El mapa se actualizará con los asientos ocupados. '
-            'Revise su selección e intente nuevamente.',
-          ),
-          actions: [
-            FilledButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Ver mapa actualizado'),
-            ),
-          ],
-        ),
-      ),
-    );
-    _reload();
   }
 
   Widget _asiento(MapaAsientos mapa, String asiento) {
     final colors = Theme.of(context).colorScheme;
     final ocupado = mapa.ocupado(asiento);
+    final claseAsiento = mapa.clase(asiento);
+    final deOtraClase = claseAsiento != _clase;
     final seleccionado = _seleccionados.contains(asiento);
     final ventana = mapa.esVentana(asiento);
+    final ejecutiva = claseAsiento == Clase.ejecutiva;
 
     Color fondo = Colors.white;
     Color borde = Colors.grey.shade400;
@@ -249,22 +136,37 @@ class _SeleccionAsientosPageState extends State<SeleccionAsientosPage> {
     if (ocupado) {
       fondo = Colors.grey.shade300;
       borde = Colors.grey.shade300;
+    } else if (deOtraClase) {
+      fondo = Colors.grey.shade100;
+      borde = Colors.grey.shade200;
+      texto = Colors.grey.shade400;
     } else if (seleccionado) {
       fondo = colors.primary;
       borde = colors.primary;
       texto = Colors.white;
+    } else if (ejecutiva) {
+      fondo = ventana ? Colors.amber.shade100 : Colors.amber.shade50;
+      borde = Colors.amber.shade700;
+      texto = Colors.amber.shade900;
     } else if (ventana) {
       fondo = Colors.lightBlue.shade50;
       borde = Colors.lightBlue.shade300;
       texto = Colors.lightBlue.shade800;
     }
 
+    final String mensaje;
+    if (ocupado) {
+      mensaje = 'Asiento $asiento ocupado';
+    } else if (deOtraClase) {
+      mensaje = 'Asiento $asiento · clase ${claseAsiento.nombre} (no es su clase)';
+    } else {
+      mensaje = 'Asiento $asiento · ${_nombreTipo(mapa.tipo(asiento))} · \$${mapa.precio(asiento).toStringAsFixed(2)}';
+    }
+
     return Padding(
       padding: const EdgeInsets.all(3),
       child: Tooltip(
-        message: ocupado
-            ? 'Asiento $asiento ocupado'
-            : 'Asiento $asiento · ${_nombreTipo(mapa.tipo(asiento))} · \$${mapa.precio(asiento).toStringAsFixed(2)}',
+        message: mensaje,
         child: InkWell(
           borderRadius: BorderRadius.circular(8),
           onTap: ocupado ? null : () => _alternar(mapa, asiento),
@@ -336,6 +238,21 @@ class _SeleccionAsientosPageState extends State<SeleccionAsientosPage> {
     );
   }
 
+  Widget _etiquetaCabina(String texto, {bool resaltada = false}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Text(
+        texto,
+        style: TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.bold,
+          letterSpacing: 1,
+          color: resaltada ? Theme.of(context).colorScheme.primary : Colors.grey.shade500,
+        ),
+      ),
+    );
+  }
+
   Widget _leyenda(MapaAsientos mapa) {
     Widget item(Color fondo, Color borde, String texto, {IconData? icono}) {
       return Row(
@@ -358,15 +275,22 @@ class _SeleccionAsientosPageState extends State<SeleccionAsientosPage> {
     }
 
     final primary = Theme.of(context).colorScheme.primary;
+    final ejecutiva = _clase == Clase.ejecutiva;
     return Wrap(
       alignment: WrapAlignment.center,
       spacing: 16,
       runSpacing: 8,
       children: [
-        item(Colors.white, Colors.grey.shade400, 'Disponible'),
-        item(Colors.lightBlue.shade50, Colors.lightBlue.shade300,
-            'Ventana (+\$${mapa.recargoVentana.toStringAsFixed(2)})'),
+        ejecutiva
+            ? item(Colors.amber.shade50, Colors.amber.shade700, 'Ejecutiva')
+            : item(Colors.white, Colors.grey.shade400, 'Económica'),
+        item(
+          ejecutiva ? Colors.amber.shade100 : Colors.lightBlue.shade50,
+          ejecutiva ? Colors.amber.shade700 : Colors.lightBlue.shade300,
+          'Ventana (+\$${mapa.recargoVentana.toStringAsFixed(2)})',
+        ),
         item(primary, primary, 'Seleccionado'),
+        item(Colors.grey.shade100, Colors.grey.shade200, 'Otra clase'),
         item(Colors.grey.shade300, Colors.grey.shade300, 'Ocupado', icono: Icons.close),
       ],
     );
@@ -374,6 +298,7 @@ class _SeleccionAsientosPageState extends State<SeleccionAsientosPage> {
 
   Widget _avion(MapaAsientos mapa) {
     final borde = Colors.grey.shade300;
+    final filasEjecutiva = mapa.vuelo.filasEjecutiva;
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
       decoration: BoxDecoration(
@@ -392,19 +317,41 @@ class _SeleccionAsientosPageState extends State<SeleccionAsientosPage> {
           const SizedBox(height: 40),
           Icon(Icons.airline_seat_recline_extra, color: Colors.grey.shade400),
           Text('Cabina', style: TextStyle(color: Colors.grey.shade500, fontSize: 12)),
-          const SizedBox(height: 16),
+          const SizedBox(height: 8),
           _encabezado(mapa),
           const SizedBox(height: 4),
-          for (int fila = 1; fila <= mapa.filas; fila++) _filaAsientos(mapa, fila),
+          for (int fila = 1; fila <= mapa.filas; fila++) ...[
+            if (fila == 1 && filasEjecutiva > 0)
+              _etiquetaCabina('CLASE EJECUTIVA', resaltada: _clase == Clase.ejecutiva),
+            if (fila == filasEjecutiva + 1)
+              _etiquetaCabina('CLASE ECONÓMICA', resaltada: _clase == Clase.economica),
+            _filaAsientos(mapa, fila),
+          ],
         ],
+      ),
+    );
+  }
+
+  Widget _aviso(MapaAsientos mapa) {
+    final libres = _libresEnClase(mapa);
+    if (libres >= widget.cantidad) return const SizedBox.shrink();
+    return Container(
+      width: double.infinity,
+      color: Colors.orange.shade100,
+      padding: const EdgeInsets.all(10),
+      child: Text(
+        'Solo quedan $libres asientos libres en clase ${_clase.nombre} y necesita ${widget.cantidad}. '
+        'Vuelva y elija otro vuelo o clase.',
+        textAlign: TextAlign.center,
+        style: TextStyle(color: Colors.orange.shade900),
       ),
     );
   }
 
   Widget _resumen(MapaAsientos mapa) {
     final subtotal = _subtotal(mapa);
-    final total = subtotal * (1 + _iva);
-    final vacio = _seleccionados.isEmpty;
+    final faltan = widget.cantidad - _seleccionados.length;
+    final completo = faltan == 0;
 
     return SafeArea(
       top: false,
@@ -422,13 +369,19 @@ class _SeleccionAsientosPageState extends State<SeleccionAsientosPage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    vacio ? 'Seleccione sus asientos' : 'Asientos: ${_seleccionados.join(', ')}',
+                    'Asientos ${_seleccionados.length} de ${widget.cantidad}'
+                    '${_seleccionados.isEmpty ? '' : ': ${_seleccionados.join(', ')}'}',
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                   ),
-                  if (!vacio)
+                  if (!completo)
                     Text(
-                      'Total con IVA: \$${total.toStringAsFixed(2)}',
+                      'Falta${faltan == 1 ? '' : 'n'} $faltan por elegir',
+                      style: TextStyle(fontSize: 12, color: Colors.grey[700]),
+                    )
+                  else
+                    Text(
+                      'Subtotal: \$${subtotal.toStringAsFixed(2)} (sin IVA)',
                       style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                     ),
                 ],
@@ -436,14 +389,8 @@ class _SeleccionAsientosPageState extends State<SeleccionAsientosPage> {
             ),
             const SizedBox(width: 12),
             FilledButton(
-              onPressed: vacio || _isSaving ? null : () => _confirmar(mapa),
-              child: _isSaving
-                  ? const SizedBox(
-                      height: 20,
-                      width: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                    )
-                  : Text(vacio ? 'Reservar' : 'Reservar (${_seleccionados.length})'),
+              onPressed: completo ? () => _aceptar(mapa) : null,
+              child: const Text('Confirmar asientos'),
             ),
           ],
         ),
@@ -453,16 +400,16 @@ class _SeleccionAsientosPageState extends State<SeleccionAsientosPage> {
 
   @override
   Widget build(BuildContext context) {
-    final vuelo = widget.vuelo;
+    final vuelo = widget.tramo.vuelo;
 
     return Scaffold(
       appBar: AppBar(
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('${vuelo.origen} → ${vuelo.destino}'),
+            Text('${widget.titulo} · ${vuelo.origen} → ${vuelo.destino}'),
             Text(
-              '${vuelo.fecha}   ${vuelo.horaSalida} - ${vuelo.horaLlegada}',
+              '${vuelo.fecha}   ${vuelo.horaSalida} - ${vuelo.horaLlegada} · ${_clase.nombre}',
               style: const TextStyle(fontSize: 13),
             ),
           ],
@@ -473,6 +420,7 @@ class _SeleccionAsientosPageState extends State<SeleccionAsientosPage> {
             onPressed: _reload,
             tooltip: 'Actualizar mapa',
           ),
+          const BotonInicio(),
           const BotonCerrarSesion(),
         ],
       ),
@@ -490,6 +438,7 @@ class _SeleccionAsientosPageState extends State<SeleccionAsientosPage> {
 
           return Column(
             children: [
+              _aviso(mapa),
               Padding(
                 padding: const EdgeInsets.all(12),
                 child: _leyenda(mapa),

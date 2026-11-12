@@ -1,19 +1,27 @@
 import 'dart:convert';
 
 import 'package:aerotech_app/models/reserva.dart';
+import 'package:aerotech_app/models/equipaje.dart';
+import 'package:aerotech_app/models/tramo.dart';
 import 'package:aerotech_app/services/api_service.dart';
 import 'package:http/http.dart' as http;
 
 class ReservaService extends ApiService {
-  Future<Map<String, dynamic>> crearReserva(int vueloId, List<String> asientos, int version) =>
-      guard(() async {
+  /// Crea una reserva por tramo (1 solo ida, 2 ida y vuelta) en una sola transacción.
+  Future<Map<String, dynamic>> crearReservas(List<SeleccionTramo> tramos) => guard(() async {
         final response = await http.post(
           Uri.parse('$baseUrl/reservas'),
           headers: headers,
           body: jsonEncode({
-            'vuelo_id': vueloId,
-            'asientos': asientos,
-            'version': version,
+            'tramos': [
+              for (final t in tramos)
+                {
+                  'vuelo_id': t.vuelo.id,
+                  'asientos': t.asientos,
+                  'version': t.vuelo.version,
+                  if (t.equipaje.isNotEmpty) 'equipaje': t.equipaje,
+                },
+            ],
           }),
         );
 
@@ -22,6 +30,16 @@ class ReservaService extends ApiService {
         }
 
         throwError(response, 'Error al crear la reserva.');
+      });
+
+  Future<TarifasEquipaje> getTarifasEquipaje() => guard(() async {
+        final response = await http.get(Uri.parse('$baseUrl/equipaje'), headers: headers);
+
+        if (response.statusCode == 200) {
+          return TarifasEquipaje.fromJson(Map<String, dynamic>.from(decode(response)));
+        }
+
+        throwError(response, 'Error al cargar las tarifas de equipaje.');
       });
 
   Future<List<Reserva>> getMisReservas() => _listar('$baseUrl/reservas/mis-reservas');

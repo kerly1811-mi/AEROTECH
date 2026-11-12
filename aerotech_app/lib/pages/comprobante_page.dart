@@ -1,3 +1,4 @@
+import 'package:aerotech_app/widgets/boton_inicio.dart';
 import 'package:aerotech_app/widgets/boton_cerrar_sesion.dart';
 import 'package:aerotech_app/services/reserva_service.dart';
 import 'package:aerotech_app/widgets/error_view.dart';
@@ -53,6 +54,7 @@ class _ComprobantePageState extends State<ComprobantePage> {
             tooltip: 'Copiar XML',
             onPressed: _copiar,
           ),
+          const BotonInicio(),
           const BotonCerrarSesion(),
         ],
       ),

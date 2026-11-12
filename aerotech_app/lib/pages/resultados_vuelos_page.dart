@@ -1,7 +1,12 @@
+import 'package:aerotech_app/widgets/boton_inicio.dart';
 import 'package:aerotech_app/models/aeropuerto.dart';
+import 'package:aerotech_app/models/clase.dart';
+import 'package:aerotech_app/models/pasajeros.dart';
+import 'package:aerotech_app/models/tramo.dart';
 import 'package:aerotech_app/models/vuelo.dart';
-import 'package:aerotech_app/pages/seleccion_asientos_page.dart';
+import 'package:aerotech_app/pages/resumen_viaje_page.dart';
 import 'package:aerotech_app/services/vuelo_service.dart';
+import 'package:aerotech_app/utils/fechas.dart';
 import 'package:aerotech_app/widgets/boton_cerrar_sesion.dart';
 import 'package:aerotech_app/widgets/error_view.dart';
 import 'package:flutter/material.dart';
@@ -12,7 +17,7 @@ class ResultadosVuelosPage extends StatefulWidget {
   final String fecha;
   final String? fechaRegreso;
   final bool idaYVuelta;
-  final String pasajeros;
+  final Pasajeros pasajeros;
 
   const ResultadosVuelosPage({
     super.key,
@@ -29,17 +34,12 @@ class ResultadosVuelosPage extends StatefulWidget {
 }
 
 class _ResultadosVuelosPageState extends State<ResultadosVuelosPage> {
-  static const _dias = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
-  static const _meses = [
-    'ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic',
-  ];
-
   final VueloService vueloService = VueloService();
 
   late Future<List<Vuelo>> futureVuelos;
   late String _fechaSel;
   bool _paso2 = false; // false: vuelo de ida, true: vuelo de regreso
-  Vuelo? _idaElegida;
+  TramoViaje? _ida;
   bool _avisoVisible = true;
 
   Aeropuerto get _origenPaso => _paso2 ? widget.destino : widget.origen;
@@ -59,49 +59,28 @@ class _ResultadosVuelosPageState extends State<ResultadosVuelosPage> {
     });
   }
 
-  String _corta(String iso) {
-    final f = DateTime.parse(iso);
-    return '${f.day} ${_meses[f.month - 1]}';
-  }
-
-  String _larga(String iso) {
-    final f = DateTime.parse(iso);
-    return '${_dias[f.weekday - 1]}, ${_meses[f.month - 1]} ${f.day}, ${f.year}';
-  }
-
-  String _duracion(Vuelo v) {
-    int minutos(String hora) {
-      final p = hora.split(':');
-      return int.parse(p[0]) * 60 + int.parse(p[1]);
-    }
-
-    var total = minutos(v.horaLlegada) - minutos(v.horaSalida);
-    if (total <= 0) total += 24 * 60;
-    final h = total ~/ 60;
-    final m = total % 60;
-    return h > 0 ? '${h}h ${m.toString().padLeft(2, '0')}m' : '${m}m';
-  }
-
   String get _resumenFechas {
     if (widget.idaYVuelta && widget.fechaRegreso != null) {
-      return '${_corta(widget.fecha)} - ${_corta(widget.fechaRegreso!)} · Ida y vuelta';
+      return '${fechaCorta(widget.fecha)} - ${fechaCorta(widget.fechaRegreso!)} · Ida y vuelta';
     }
-    return '${_corta(widget.fecha)} · Solo ida';
+    return '${fechaCorta(widget.fecha)} · Solo ida';
   }
 
   void _volverPaso1() {
     setState(() {
       _paso2 = false;
-      _idaElegida = null;
+      _ida = null;
       _fechaSel = widget.fecha;
     });
     _cargar();
   }
 
-  Future<void> _elegir(Vuelo vuelo) async {
+  Future<void> _elegir(Vuelo vuelo, Clase clase) async {
+    final tramo = TramoViaje(vuelo, clase);
+
     if (widget.idaYVuelta && !_paso2) {
       setState(() {
-        _idaElegida = vuelo;
+        _ida = tramo;
         _paso2 = true;
         _fechaSel = widget.fechaRegreso ?? widget.fecha;
       });
@@ -109,23 +88,18 @@ class _ResultadosVuelosPageState extends State<ResultadosVuelosPage> {
       return;
     }
 
-    final aReservar = _paso2 ? _idaElegida! : vuelo;
-    if (_paso2) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Por ahora solo se reserva el vuelo de ida.')),
-      );
-    }
-    final result = await Navigator.push(
+    await Navigator.push(
       context,
-      MaterialPageRoute(builder: (context) => SeleccionAsientosPage(vuelo: aReservar)),
+      MaterialPageRoute(
+        builder: (context) => ResumenViajePage(
+          ida: _paso2 ? _ida! : tramo,
+          regreso: _paso2 ? tramo : null,
+          pasajeros: widget.pasajeros,
+        ),
+      ),
     );
-    if (result == true && mounted) {
-      if (_paso2) {
-        _volverPaso1();
-      } else {
-        _cargar();
-      }
-    }
+    // Al volver (atrás) se queda en esta pantalla; los cupos pueden haber cambiado.
+    if (mounted) _cargar();
   }
 
   Widget _barraResumen() {
@@ -146,7 +120,7 @@ class _ResultadosVuelosPageState extends State<ResultadosVuelosPage> {
                     '${widget.origen.etiqueta} → ${widget.destino.etiqueta}',
                     style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                   ),
-                  Text('$_resumenFechas · ${widget.pasajeros}', style: const TextStyle(fontSize: 12)),
+                  Text('$_resumenFechas · ${widget.pasajeros.resumen}', style: const TextStyle(fontSize: 12)),
                 ],
               ),
             ),
@@ -163,7 +137,8 @@ class _ResultadosVuelosPageState extends State<ResultadosVuelosPage> {
   }
 
   Widget _barraIdaElegida() {
-    final v = _idaElegida!;
+    final t = _ida!;
+    final v = t.vuelo;
     final colors = Theme.of(context).colorScheme;
     return Card(
       margin: const EdgeInsets.fromLTRB(12, 12, 12, 0),
@@ -178,8 +153,8 @@ class _ResultadosVuelosPageState extends State<ResultadosVuelosPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('Vuelo de ida', style: TextStyle(fontWeight: FontWeight.bold)),
-                  Text('${_larga(v.fecha)}  ·  ${v.horaSalida} → ${v.horaLlegada}'),
+                  Text('Vuelo de ida · ${t.clase.nombre}', style: const TextStyle(fontWeight: FontWeight.bold)),
+                  Text('${fechaLarga(v.fecha)}  ·  ${v.horaSalida} → ${v.horaLlegada}'),
                 ],
               ),
             ),
@@ -212,7 +187,7 @@ class _ResultadosVuelosPageState extends State<ResultadosVuelosPage> {
                   _paso2 ? 'Seleccionar vuelo de regreso' : 'Seleccionar vuelo de ida',
                   style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
                 ),
-                Text('${_larga(_fechaSel)} · Hacia ${_destinoPaso.etiqueta}'),
+                Text('${fechaLarga(_fechaSel)} · Hacia ${_destinoPaso.etiqueta}'),
               ],
             ),
           ),
@@ -267,6 +242,8 @@ class _ResultadosVuelosPageState extends State<ResultadosVuelosPage> {
     final colors = Theme.of(context).colorScheme;
     final ahora = DateTime.now();
     final hoy = DateTime(ahora.year, ahora.month, ahora.day);
+    // En el regreso no se puede volar antes de la fecha de ida.
+    final minimo = _paso2 && _ida != null ? DateTime.parse(_ida!.vuelo.fecha) : hoy;
 
     return SizedBox(
       height: 76,
@@ -277,8 +254,10 @@ class _ResultadosVuelosPageState extends State<ResultadosVuelosPage> {
         itemBuilder: (context, i) {
           final dia = centro.add(Duration(days: i - 3));
           final iso = dia.toIso8601String().substring(0, 10);
-          final delDia = vuelos.where((v) => v.fecha == iso && v.asientosDisponibles > 0).toList();
-          final disponible = delDia.isNotEmpty && !dia.isBefore(hoy);
+          final delDia = vuelos
+              .where((v) => v.fecha == iso && v.disponibles(Clase.economica) + v.disponibles(Clase.ejecutiva) > 0)
+              .toList();
+          final disponible = delDia.isNotEmpty && !dia.isBefore(minimo);
           final precio = disponible
               ? delDia.map((v) => v.precio).reduce((a, b) => a < b ? a : b)
               : null;
@@ -301,14 +280,18 @@ class _ResultadosVuelosPageState extends State<ResultadosVuelosPage> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Text(
-                    '${_dias[dia.weekday - 1]}, ${_corta(iso)}',
+                    fechaConDia(iso),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: TextStyle(fontSize: 12, color: Colors.grey[700]),
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    precio != null ? '\$${precio.toStringAsFixed(2)}' : 'No disponible',
+                    precio != null ? 'desde \$${precio.toStringAsFixed(2)}' : 'No disponible',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                      fontSize: precio != null ? 16 : 12,
+                      fontSize: precio != null ? 14 : 12,
                       fontWeight: seleccionado ? FontWeight.bold : FontWeight.normal,
                       color: precio != null ? null : Colors.grey,
                     ),
@@ -322,9 +305,46 @@ class _ResultadosVuelosPageState extends State<ResultadosVuelosPage> {
     );
   }
 
-  Widget _tarjetaVuelo(Vuelo v) {
+  Widget _botonClase(Vuelo v, Clase clase) {
+    final necesarios = widget.pasajeros.conAsiento;
+    final libres = v.disponibles(clase);
+    final habil = libres >= necesarios;
+    final ejecutiva = clase == Clase.ejecutiva;
     final colors = Theme.of(context).colorScheme;
-    final sinAsientos = v.asientosDisponibles == 0;
+
+    final String detalle;
+    if (libres == 0) {
+      detalle = 'Agotada';
+    } else if (!habil) {
+      detalle = 'Solo $libres libres (necesita $necesarios)';
+    } else {
+      detalle = '$libres asientos libres';
+    }
+
+    return Expanded(
+      child: FilledButton(
+        onPressed: habil ? () => _elegir(v, clase) : null,
+        style: FilledButton.styleFrom(
+          backgroundColor: ejecutiva ? Colors.grey.shade900 : colors.primary,
+          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(clase.nombre, style: const TextStyle(fontSize: 12)),
+            Text(
+              '\$${v.precioClase(clase).toStringAsFixed(2)}',
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            Text(detalle, style: const TextStyle(fontSize: 11), textAlign: TextAlign.center),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _tarjetaVuelo(Vuelo v) {
     final etiqueta = _paso2 ? 'Vuelo de regreso' : 'Vuelo de ida';
 
     return Card(
@@ -347,7 +367,7 @@ class _ResultadosVuelosPageState extends State<ResultadosVuelosPage> {
                         Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 6),
                           child: Text(
-                            _duracion(v),
+                            v.duracion,
                             style: TextStyle(fontSize: 12, color: Colors.grey[700]),
                           ),
                         ),
@@ -363,46 +383,22 @@ class _ResultadosVuelosPageState extends State<ResultadosVuelosPage> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(v.origen, style: TextStyle(color: Colors.grey[700])),
-                Text(v.destino, style: TextStyle(color: Colors.grey[700])),
+                Text(v.origenEtiqueta, style: TextStyle(color: Colors.grey[700])),
+                Text(v.destinoEtiqueta, style: TextStyle(color: Colors.grey[700])),
               ],
             ),
-            const Divider(height: 24),
+            const SizedBox(height: 4),
+            Text('Operado: AeroTech', style: TextStyle(color: Colors.grey[700], fontSize: 12)),
+            const Divider(height: 20),
+            Text('$etiqueta · elige tu clase', style: TextStyle(fontSize: 12, color: Colors.grey[600])),
+            const SizedBox(height: 6),
             Row(
               children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Operado: AeroTech', style: TextStyle(color: Colors.grey[700])),
-                      Text(
-                        sinAsientos
-                            ? 'Agotado'
-                            : '${v.asientosDisponibles} de ${v.capacidad} asientos libres',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: sinAsientos ? Colors.red : Colors.grey[700],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Text('$etiqueta · desde', style: TextStyle(fontSize: 12, color: Colors.grey[600])),
-                    Text(
-                      '\$${v.precio.toStringAsFixed(2)}',
-                      style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: colors.primary),
-                    ),
-                    const SizedBox(height: 6),
-                    FilledButton.icon(
-                      onPressed: sinAsientos ? null : () => _elegir(v),
-                      icon: Icon(widget.idaYVuelta ? Icons.check : Icons.event_seat, size: 18),
-                      label: Text(widget.idaYVuelta ? 'Seleccionar' : 'Asientos'),
-                    ),
-                  ],
-                ),
+                _botonClase(v, Clase.economica),
+                if (v.tieneEjecutiva) ...[
+                  const SizedBox(width: 10),
+                  _botonClase(v, Clase.ejecutiva),
+                ],
               ],
             ),
           ],
@@ -427,7 +423,8 @@ class _ResultadosVuelosPageState extends State<ResultadosVuelosPage> {
               onPressed: _cargar,
               tooltip: 'Recargar',
             ),
-            const BotonCerrarSesion(),
+            const BotonInicio(),
+          const BotonCerrarSesion(),
           ],
         ),
         body: Column(
@@ -450,7 +447,7 @@ class _ResultadosVuelosPageState extends State<ResultadosVuelosPage> {
                   return ListView(
                     padding: const EdgeInsets.only(bottom: 16),
                     children: [
-                      if (_paso2 && _idaElegida != null) _barraIdaElegida(),
+                      if (_paso2 && _ida != null) _barraIdaElegida(),
                       _titulo(),
                       _avisoSoloIda(),
                       const SizedBox(height: 8),

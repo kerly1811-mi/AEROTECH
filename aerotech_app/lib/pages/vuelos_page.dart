@@ -1,8 +1,10 @@
 import 'package:aerotech_app/models/aeropuerto.dart';
+import 'package:aerotech_app/models/pasajeros.dart';
 import 'package:aerotech_app/pages/reservas_page.dart';
 import 'package:aerotech_app/pages/resultados_vuelos_page.dart';
 import 'package:aerotech_app/services/vuelo_service.dart';
 import 'package:aerotech_app/widgets/aeropuerto_field.dart';
+import 'package:aerotech_app/widgets/boton_inicio.dart';
 import 'package:aerotech_app/widgets/boton_cerrar_sesion.dart';
 import 'package:aerotech_app/widgets/error_view.dart';
 import 'package:flutter/material.dart';
@@ -39,7 +41,9 @@ class _VuelosPageState extends State<VuelosPage> {
   }
 
   void _cargarAeropuertos() {
-    setState(() => futureAeropuertos = vueloService.getAeropuertos());
+    setState(() {
+      futureAeropuertos = vueloService.getAeropuertos();
+    });
   }
 
   void _buscar() {
@@ -68,7 +72,7 @@ class _VuelosPageState extends State<VuelosPage> {
           fecha: _fecha!,
           fechaRegreso: _idaYVuelta ? _fechaRegreso : null,
           idaYVuelta: _idaYVuelta,
-          pasajeros: _resumenPasajeros,
+          pasajeros: Pasajeros(adultos: _adultos, ninos: _ninos, infantes: _infantes),
         ),
       ),
     );
@@ -324,6 +328,7 @@ class _VuelosPageState extends State<VuelosPage> {
       appBar: AppBar(
         title: Text(widget.inicio ? 'AeroTech' : 'Buscar vuelos'),
         actions: [
+          if (!widget.inicio) const BotonInicio(),
           const BotonCerrarSesion(),
         ],
       ),

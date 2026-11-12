@@ -5,6 +5,7 @@ class Reserva {
   final int usuarioId;
   final String cliente;
   final int vueloId;
+  final int viajeId;
   final String origen;
   final String destino;
   final String fechaVuelo;
@@ -21,6 +22,7 @@ class Reserva {
     required this.usuarioId,
     required this.cliente,
     required this.vueloId,
+    required this.viajeId,
     required this.origen,
     required this.destino,
     required this.fechaVuelo,
@@ -39,6 +41,7 @@ class Reserva {
       usuarioId: (json['usuario_id'] as num).toInt(),
       cliente: json['cliente'] ?? '',
       vueloId: (json['vuelo_id'] as num).toInt(),
+      viajeId: (json['viaje_id'] as num?)?.toInt() ?? (json['id'] as num).toInt(),
       origen: json['origen'] ?? '',
       destino: json['destino'] ?? '',
       fechaVuelo: json['fecha_vuelo'] ?? '',
@@ -55,6 +58,8 @@ class Reserva {
   }
 
   bool get confirmada => estado == 'confirmada';
+
+  int get maletasExtra => asientos.fold<int>(0, (t, a) => t + a.equipajeExtra);
 
   String get textoAsientos {
     if (asientos.isEmpty) return '$cantidadAsientos pasajero(s)';

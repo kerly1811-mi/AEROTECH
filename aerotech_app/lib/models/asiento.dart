@@ -1,21 +1,31 @@
+import 'package:aerotech_app/models/clase.dart';
 import 'package:aerotech_app/models/vuelo.dart';
 
 class AsientoReservado {
   final String asiento;
   final String tipo;
+  final String clase;
   final double precio;
+  final int equipajeExtra;
+  final double precioEquipaje;
 
   AsientoReservado({
     required this.asiento,
     required this.tipo,
+    this.clase = '',
     required this.precio,
+    this.equipajeExtra = 0,
+    this.precioEquipaje = 0,
   });
 
   factory AsientoReservado.fromJson(Map<String, dynamic> json) {
     return AsientoReservado(
       asiento: json['asiento'] ?? '',
       tipo: json['tipo'] ?? '',
+      clase: json['clase'] ?? '',
       precio: (json['precio'] as num).toDouble(),
+      equipajeExtra: (json['equipaje_extra'] as num?)?.toInt() ?? 0,
+      precioEquipaje: (json['precio_equipaje'] as num?)?.toDouble() ?? 0,
     );
   }
 }
@@ -54,7 +64,12 @@ class MapaAsientos {
 
   bool ocupado(String asiento) => ocupados.contains(asiento);
 
+  int fila(String asiento) => int.parse(asiento.substring(0, asiento.length - 1));
+
+  Clase clase(String asiento) => vuelo.claseDeFila(fila(asiento));
+
   double precio(String asiento) {
-    return esVentana(asiento) ? vuelo.precio + recargoVentana : vuelo.precio;
+    final base = vuelo.precioClase(clase(asiento));
+    return esVentana(asiento) ? base + recargoVentana : base;
   }
 }

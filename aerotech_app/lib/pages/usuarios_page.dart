@@ -1,3 +1,4 @@
+import 'package:aerotech_app/widgets/boton_inicio.dart';
 import 'package:aerotech_app/widgets/boton_cerrar_sesion.dart';
 import 'package:aerotech_app/config.dart';
 import 'package:aerotech_app/models/usuario.dart';
@@ -171,6 +172,7 @@ class _UsuariosPageState extends State<UsuariosPage> {
             onPressed: _reload,
             tooltip: 'Recargar',
           ),
+          const BotonInicio(),
           const BotonCerrarSesion(),
         ],
       ),
