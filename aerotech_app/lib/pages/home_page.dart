@@ -1,10 +1,9 @@
 import 'package:aerotech_app/config.dart';
 import 'package:aerotech_app/pages/gestion_vuelos_page.dart';
-import 'package:aerotech_app/pages/login_page.dart';
 import 'package:aerotech_app/pages/reservas_page.dart';
 import 'package:aerotech_app/pages/usuarios_page.dart';
 import 'package:aerotech_app/pages/vuelos_page.dart';
-import 'package:aerotech_app/services/auth_service.dart';
+import 'package:aerotech_app/widgets/boton_cerrar_sesion.dart';
 import 'package:flutter/material.dart';
 
 class _Opcion {
@@ -24,57 +23,15 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  final AuthService authService = AuthService();
-
   static const _opciones = [
-    _Opcion('Buscar vuelos', 'Elige tu vuelo y tus asientos', Icons.flight, 'reservas.crear'),
-    _Opcion('Mis reservas', 'Consulta, cancela y descarga tu comprobante', Icons.event_note, 'reservas.ver_propias'),
     _Opcion('Gestión de vuelos', 'Crea y edita vuelos, horarios y precios', Icons.edit_calendar, 'vuelos.crear'),
     _Opcion('Reservas', 'Todas las reservas del sistema', Icons.list_alt, 'reservas.ver_todas'),
     _Opcion('Usuarios', 'Activa o desactiva cuentas', Icons.group, 'usuarios.ver'),
   ];
 
-  Future<void> _confirmAndLogout() async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => PopScope(
-        canPop: false,
-        child: AlertDialog(
-          title: const Text('Cerrar sesión'),
-          content: const Text('¿Está seguro de que desea cerrar sesión?'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('No'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('Sí, salir'),
-            ),
-          ],
-        ),
-      ),
-    );
-
-    if (confirm != true) return;
-
-    await authService.logout();
-    if (!mounted) return;
-    Navigator.pushAndRemoveUntil(
-      context,
-      MaterialPageRoute(builder: (context) => const LoginPage()),
-      (route) => false,
-    );
-  }
-
   void _abrir(_Opcion opcion) {
     final Widget pagina;
     switch (opcion.permiso) {
-      case 'reservas.crear':
-        pagina = const VuelosPage();
-      case 'reservas.ver_propias':
-        pagina = const ReservasPage();
       case 'vuelos.crear':
         pagina = const GestionVuelosPage();
       case 'reservas.ver_todas':
@@ -90,19 +47,14 @@ class _HomePageState extends State<HomePage> {
   @override
   Widget build(BuildContext context) {
     final usuario = Config.usuario!;
+    if (usuario.puede('reservas.crear')) return const VuelosPage(inicio: true);
     final opciones = _opciones.where((o) => usuario.puede(o.permiso)).toList();
     final colors = Theme.of(context).colorScheme;
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('AeroTech'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.logout),
-            tooltip: 'Cerrar sesión',
-            onPressed: _confirmAndLogout,
-          ),
-        ],
+        actions: const [BotonCerrarSesion()],
       ),
       body: Center(
         child: ConstrainedBox(

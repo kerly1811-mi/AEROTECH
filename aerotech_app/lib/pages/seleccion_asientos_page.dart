@@ -1,3 +1,4 @@
+import 'package:aerotech_app/widgets/boton_cerrar_sesion.dart';
 import 'package:aerotech_app/models/asiento.dart';
 import 'package:aerotech_app/models/vuelo.dart';
 import 'package:aerotech_app/pages/comprobante_page.dart';
@@ -472,6 +473,7 @@ class _SeleccionAsientosPageState extends State<SeleccionAsientosPage> {
             onPressed: _reload,
             tooltip: 'Actualizar mapa',
           ),
+          const BotonCerrarSesion(),
         ],
       ),
       body: FutureBuilder<MapaAsientos>(

@@ -1,3 +1,4 @@
+import 'package:aerotech_app/widgets/boton_cerrar_sesion.dart';
 import 'package:aerotech_app/config.dart';
 import 'package:aerotech_app/models/vuelo.dart';
 import 'package:aerotech_app/pages/login_page.dart';
@@ -106,6 +107,7 @@ class _GestionVuelosPageState extends State<GestionVuelosPage> {
             onPressed: _reload,
             tooltip: 'Recargar',
           ),
+          const BotonCerrarSesion(),
         ],
       ),
       floatingActionButton: usuario.puede('vuelos.crear')

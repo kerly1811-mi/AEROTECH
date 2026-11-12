@@ -1,3 +1,4 @@
+import 'package:aerotech_app/widgets/boton_cerrar_sesion.dart';
 import 'package:aerotech_app/models/vuelo.dart';
 import 'package:aerotech_app/pages/login_page.dart';
 import 'package:aerotech_app/services/api_service.dart';
@@ -229,7 +230,10 @@ class _VueloFormPageState extends State<VueloFormPage> {
     final isEditing = widget.vuelo != null;
 
     return Scaffold(
-      appBar: AppBar(title: Text(isEditing ? 'Editar vuelo' : 'Nuevo vuelo')),
+      appBar: AppBar(
+        title: Text(isEditing ? 'Editar vuelo' : 'Nuevo vuelo'),
+        actions: const [BotonCerrarSesion()],
+      ),
       body: Center(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(20),

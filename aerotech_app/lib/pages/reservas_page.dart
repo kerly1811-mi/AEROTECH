@@ -1,3 +1,4 @@
+import 'package:aerotech_app/widgets/boton_cerrar_sesion.dart';
 import 'package:aerotech_app/config.dart';
 import 'package:aerotech_app/models/reserva.dart';
 import 'package:aerotech_app/pages/comprobante_page.dart';
@@ -152,6 +153,7 @@ class _ReservasPageState extends State<ReservasPage> {
             onPressed: _reload,
             tooltip: 'Recargar',
           ),
+          const BotonCerrarSesion(),
         ],
       ),
       body: FutureBuilder<List<Reserva>>(
