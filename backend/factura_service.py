@@ -2,6 +2,8 @@ import datetime
 import xml.etree.ElementTree as ET
 from decimal import Decimal
 
+ZONA_ECUADOR = datetime.timezone(datetime.timedelta(hours=-5))
+
 
 class FacturaService:
     def __init__(self):
@@ -23,6 +25,12 @@ class FacturaService:
             for _ in range(reserva["cantidad_asientos"])
         ]
 
+    def fecha_emision(self, reserva):
+        fecha = reserva["fecha_reserva"]
+        if isinstance(fecha, datetime.datetime) and fecha.tzinfo:
+            fecha = fecha.astimezone(ZONA_ECUADOR)
+        return fecha.date().isoformat() if isinstance(fecha, datetime.datetime) else fecha.isoformat()
+
     def generar_xml(self, reserva):
         lineas = self.detalle(reserva)
         subtotal, iva, total = self.calcular([precio for _, precio in lineas])
@@ -32,7 +40,7 @@ class FacturaService:
 
         cabecera = ET.SubElement(factura, "cabecera")
         ET.SubElement(cabecera, "Numero").text = numero
-        ET.SubElement(cabecera, "Fecha").text = datetime.date.today().isoformat()
+        ET.SubElement(cabecera, "Fecha").text = self.fecha_emision(reserva)
 
         cliente = ET.SubElement(factura, "cliente")
         ET.SubElement(cliente, "Nombre").text = reserva["cliente"]
