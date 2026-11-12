@@ -96,21 +96,17 @@ class _ResumenViajePageState extends State<ResumenViajePage> {
   // ---------------------------------------------------------------- flujo de reserva
 
   Future<void> _continuar() async {
-    final selecciones = <SeleccionTramo>[];
-    for (var i = 0; i < _tramos.length; i++) {
-      final tramo = _tramos[i];
-      final sel = await Navigator.push<SeleccionTramo>(
-        context,
-        MaterialPageRoute(
-          builder: (context) => SeleccionAsientosPage(
-            tramo: tramo,
-            cantidad: widget.pasajeros.conAsiento,
-            titulo: _tramos.length == 1 ? 'Elige tus asientos' : (i == 0 ? 'Asientos de ida' : 'Asientos de regreso'),
-          ),
-        ),
-      );
-      if (sel == null || !mounted) return; // volvió atrás
+    final elegidos = await Navigator.push<List<SeleccionTramo>>(
+      context,
+      MaterialPageRoute(
+        builder: (context) => SeleccionAsientosPage(tramos: _tramos, pasajeros: widget.pasajeros),
+      ),
+    );
+    if (elegidos == null || !mounted) return; // volvió atrás
 
+    final selecciones = <SeleccionTramo>[];
+    for (var i = 0; i < elegidos.length; i++) {
+      final sel = elegidos[i];
       // El pasajero k viaja en el k-ésimo asiento (ordenados), con sus maletas.
       final equipaje = <String, int>{};
       for (var k = 0; k < sel.asientos.length; k++) {
