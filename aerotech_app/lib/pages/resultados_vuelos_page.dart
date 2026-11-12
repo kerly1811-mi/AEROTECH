@@ -305,7 +305,7 @@ class _ResultadosVuelosPageState extends State<ResultadosVuelosPage> {
     );
   }
 
-  Widget _botonClase(Vuelo v, Clase clase) {
+  Widget _botonClase(Vuelo v, Clase clase, {required bool lateral}) {
     final necesarios = widget.pasajeros.conAsiento;
     final libres = v.disponibles(clase);
     final habil = libres >= necesarios;
@@ -321,8 +321,7 @@ class _ResultadosVuelosPageState extends State<ResultadosVuelosPage> {
       detalle = '$libres asientos libres';
     }
 
-    return Expanded(
-      child: FilledButton(
+    final boton = FilledButton(
         onPressed: habil ? () => _elegir(v, clase) : null,
         style: FilledButton.styleFrom(
           backgroundColor: ejecutiva ? Colors.grey.shade900 : colors.primary,
@@ -340,68 +339,97 @@ class _ResultadosVuelosPageState extends State<ResultadosVuelosPage> {
             Text(detalle, style: const TextStyle(fontSize: 11), textAlign: TextAlign.center),
           ],
         ),
-      ),
+      );
+
+    // A la derecha de la hora: ancho fijo. En pantallas angostas: reparten el ancho de la fila.
+    return lateral ? SizedBox(width: 150, child: boton) : Expanded(child: boton);
+  }
+
+  Widget _infoVuelo(Vuelo v) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Text(v.horaSalida, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                child: Row(
+                  children: [
+                    const Expanded(child: Divider()),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 6),
+                      child: Text(
+                        v.duracion,
+                        style: TextStyle(fontSize: 12, color: Colors.grey[700]),
+                      ),
+                    ),
+                    const Expanded(child: Divider()),
+                  ],
+                ),
+              ),
+            ),
+            Text(v.horaLlegada, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+          ],
+        ),
+        const SizedBox(height: 2),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(v.origenEtiqueta, style: TextStyle(color: Colors.grey[700])),
+            Text(v.destinoEtiqueta, style: TextStyle(color: Colors.grey[700])),
+          ],
+        ),
+        const SizedBox(height: 4),
+        Text('Operado: AeroTech', style: TextStyle(color: Colors.grey[700], fontSize: 12)),
+      ],
     );
   }
 
   Widget _tarjetaVuelo(Vuelo v) {
-    final etiqueta = _paso2 ? 'Vuelo de regreso' : 'Vuelo de ida';
-
     return Card(
       key: ValueKey(v.id),
       margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       child: Padding(
         padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Text(v.horaSalida, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 8),
-                    child: Row(
-                      children: [
-                        const Expanded(child: Divider()),
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 6),
-                          child: Text(
-                            v.duracion,
-                            style: TextStyle(fontSize: 12, color: Colors.grey[700]),
-                          ),
-                        ),
-                        const Expanded(child: Divider()),
-                      ],
-                    ),
-                  ),
-                ),
-                Text(v.horaLlegada, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
-              ],
-            ),
-            const SizedBox(height: 2),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(v.origenEtiqueta, style: TextStyle(color: Colors.grey[700])),
-                Text(v.destinoEtiqueta, style: TextStyle(color: Colors.grey[700])),
-              ],
-            ),
-            const SizedBox(height: 4),
-            Text('Operado: AeroTech', style: TextStyle(color: Colors.grey[700], fontSize: 12)),
-            const Divider(height: 20),
-            Text('$etiqueta · elige tu clase', style: TextStyle(fontSize: 12, color: Colors.grey[600])),
-            const SizedBox(height: 6),
-            Row(
-              children: [
-                _botonClase(v, Clase.economica),
-                if (v.tieneEjecutiva) ...[
-                  const SizedBox(width: 10),
-                  _botonClase(v, Clase.ejecutiva),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final ancho = constraints.maxWidth >= 680;
+
+            if (ancho) {
+              // Horario y ruta a la izquierda; las clases a la derecha, en la misma fila.
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Expanded(child: _infoVuelo(v)),
+                  const SizedBox(width: 20),
+                  _botonClase(v, Clase.economica, lateral: true),
+                  if (v.tieneEjecutiva) ...[
+                    const SizedBox(width: 10),
+                    _botonClase(v, Clase.ejecutiva, lateral: true),
+                  ],
                 ],
+              );
+            }
+
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _infoVuelo(v),
+                const Divider(height: 20),
+                Row(
+                  children: [
+                    _botonClase(v, Clase.economica, lateral: false),
+                    if (v.tieneEjecutiva) ...[
+                      const SizedBox(width: 10),
+                      _botonClase(v, Clase.ejecutiva, lateral: false),
+                    ],
+                  ],
+                ),
               ],
-            ),
-          ],
+            );
+          },
         ),
       ),
     );
