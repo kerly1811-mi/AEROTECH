@@ -49,7 +49,9 @@ CREATE TABLE aeropuertos (
     codigo  CHAR(3)      NOT NULL UNIQUE,
     ciudad  VARCHAR(80)  NOT NULL,
     nombre  VARCHAR(120) NOT NULL,
-    pais_id INT          NOT NULL REFERENCES paises(id)
+    pais_id INT          NOT NULL REFERENCES paises(id),
+    latitud  NUMERIC(8,4) NOT NULL,
+    longitud NUMERIC(8,4) NOT NULL
 );
 
 CREATE INDEX idx_aeropuertos_pais ON aeropuertos(pais_id);
@@ -64,8 +66,11 @@ CREATE TABLE vuelos (
     precio               NUMERIC(10,2) NOT NULL CHECK (precio > 0),
     filas                INT           NOT NULL DEFAULT 20 CHECK (filas BETWEEN 1 AND 40),
     asientos_disponibles INT           NOT NULL CHECK (asientos_disponibles >= 0),
+    filas_ejecutiva      INT           NOT NULL,
+    precio_ejecutiva     NUMERIC(10,2) NOT NULL CHECK (precio_ejecutiva > 0),
     version              INT           NOT NULL DEFAULT 1,
-    CONSTRAINT vuelos_ruta_distinta CHECK (origen_id <> destino_id)
+    CONSTRAINT vuelos_ruta_distinta CHECK (origen_id <> destino_id),
+    CONSTRAINT vuelos_filas_ejecutiva_valida CHECK (filas_ejecutiva BETWEEN 0 AND filas)
 );
 
 CREATE TABLE reservas (
@@ -76,6 +81,7 @@ CREATE TABLE reservas (
     total             NUMERIC(10,2) NOT NULL,
     estado            VARCHAR(20) NOT NULL DEFAULT 'confirmada' CHECK (estado IN ('confirmada','cancelada')),
     fecha_reserva     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    viaje_id          INT NOT NULL,
     version           INT NOT NULL DEFAULT 1
 );
 
@@ -85,7 +91,10 @@ CREATE TABLE reserva_asientos (
     vuelo_id    INT           NOT NULL REFERENCES vuelos(id),
     asiento     VARCHAR(4)    NOT NULL,
     tipo        VARCHAR(10)   NOT NULL CHECK (tipo IN ('ventana','medio','pasillo')),
+    clase       VARCHAR(10)   NOT NULL CHECK (clase IN ('economica','ejecutiva')),
     precio      NUMERIC(10,2) NOT NULL,
+    equipaje_extra  INT           NOT NULL DEFAULT 0 CHECK (equipaje_extra BETWEEN 0 AND 2),
+    precio_equipaje NUMERIC(10,2) NOT NULL DEFAULT 0,
     estado      VARCHAR(10)   NOT NULL DEFAULT 'ocupado' CHECK (estado IN ('ocupado','liberado'))
 );
 
@@ -94,6 +103,7 @@ CREATE INDEX idx_tokens_usuario   ON tokens(usuario_id);
 CREATE INDEX idx_vuelos_busqueda  ON vuelos(origen_id, destino_id, fecha);
 CREATE INDEX idx_reservas_usuario ON reservas(usuario_id);
 CREATE INDEX idx_reservas_vuelo   ON reservas(vuelo_id);
+CREATE INDEX idx_reservas_viaje   ON reservas(viaje_id);
 CREATE INDEX idx_reserva_asientos_reserva ON reserva_asientos(reserva_id);
 CREATE UNIQUE INDEX uq_asiento_ocupado ON reserva_asientos(vuelo_id, asiento) WHERE estado = 'ocupado';
 
@@ -139,33 +149,34 @@ INSERT INTO paises (codigo, nombre) VALUES
 ('AR', 'Argentina'),
 ('CL', 'Chile');
 
-INSERT INTO aeropuertos (codigo, ciudad, nombre, pais_id)
-SELECT a.codigo, a.ciudad, a.nombre, p.id
+INSERT INTO aeropuertos (codigo, ciudad, nombre, pais_id, latitud, longitud)
+SELECT a.codigo, a.ciudad, a.nombre, p.id, a.latitud, a.longitud
 FROM (VALUES
-    ('UIO', 'Quito',           'Aeropuerto Internacional Mariscal Sucre',          'EC'),
-    ('GYE', 'Guayaquil',       'Aeropuerto Internacional José Joaquín de Olmedo',  'EC'),
-    ('CUE', 'Cuenca',          'Aeropuerto Mariscal Lamar',                        'EC'),
-    ('MEC', 'Manta',           'Aeropuerto Internacional Eloy Alfaro',             'EC'),
-    ('LOH', 'Loja',            'Aeropuerto Camilo Ponce Enríquez',                 'EC'),
-    ('GPS', 'Galápagos',       'Aeropuerto Seymour (Baltra)',                      'EC'),
-    ('BOG', 'Bogotá',          'Aeropuerto Internacional El Dorado',               'CO'),
-    ('LIM', 'Lima',            'Aeropuerto Internacional Jorge Chávez',            'PE'),
-    ('PTY', 'Ciudad de Panamá','Aeropuerto Internacional de Tocumen',              'PA'),
-    ('MIA', 'Miami',           'Aeropuerto Internacional de Miami',                'US'),
-    ('JFK', 'Nueva York',      'Aeropuerto Internacional John F. Kennedy',         'US'),
-    ('YYZ', 'Toronto',         'Aeropuerto Internacional Toronto Pearson',         'CA'),
-    ('MEX', 'Ciudad de México','Aeropuerto Internacional Benito Juárez',           'MX'),
-    ('MAD', 'Madrid',          'Aeropuerto Adolfo Suárez Madrid-Barajas',          'ES'),
-    ('GRU', 'São Paulo',       'Aeropuerto Internacional de Guarulhos',            'BR'),
-    ('EZE', 'Buenos Aires',    'Aeropuerto Internacional Ministro Pistarini',      'AR'),
-    ('SCL', 'Santiago',        'Aeropuerto Internacional Arturo Merino Benítez',   'CL')
-) AS a(codigo, ciudad, nombre, pais)
+    ('UIO', 'Quito',           'Aeropuerto Internacional Mariscal Sucre',          'EC', -0.1292, -78.3575),
+    ('GYE', 'Guayaquil',       'Aeropuerto Internacional José Joaquín de Olmedo',  'EC', -2.1574, -79.8836),
+    ('CUE', 'Cuenca',          'Aeropuerto Mariscal Lamar',                        'EC', -2.8895, -78.9844),
+    ('MEC', 'Manta',           'Aeropuerto Internacional Eloy Alfaro',             'EC', -0.9461, -80.6788),
+    ('LOH', 'Loja',            'Aeropuerto Camilo Ponce Enríquez',                 'EC', -3.9959, -79.3719),
+    ('GPS', 'Galápagos',       'Aeropuerto Seymour (Baltra)',                      'EC', -0.4538, -90.2659),
+    ('BOG', 'Bogotá',          'Aeropuerto Internacional El Dorado',               'CO', 4.7016, -74.1469),
+    ('LIM', 'Lima',            'Aeropuerto Internacional Jorge Chávez',            'PE', -12.0219, -77.1143),
+    ('PTY', 'Ciudad de Panamá','Aeropuerto Internacional de Tocumen',              'PA', 9.0714, -79.3835),
+    ('MIA', 'Miami',           'Aeropuerto Internacional de Miami',                'US', 25.7959, -80.287),
+    ('JFK', 'Nueva York',      'Aeropuerto Internacional John F. Kennedy',         'US', 40.6413, -73.7781),
+    ('YYZ', 'Toronto',         'Aeropuerto Internacional Toronto Pearson',         'CA', 43.6777, -79.6248),
+    ('MEX', 'Ciudad de México','Aeropuerto Internacional Benito Juárez',           'MX', 19.4363, -99.0721),
+    ('MAD', 'Madrid',          'Aeropuerto Adolfo Suárez Madrid-Barajas',          'ES', 40.4983, -3.5676),
+    ('GRU', 'São Paulo',       'Aeropuerto Internacional de Guarulhos',            'BR', -23.4356, -46.4731),
+    ('EZE', 'Buenos Aires',    'Aeropuerto Internacional Ministro Pistarini',      'AR', -34.8222, -58.5358),
+    ('SCL', 'Santiago',        'Aeropuerto Internacional Arturo Merino Benítez',   'CL', -33.393, -70.7858)
+) AS a(codigo, ciudad, nombre, pais, latitud, longitud)
 JOIN paises p ON p.codigo = a.pais;
 
 -- Rutas de ejemplo: se generan desde el 16/11/2026 hasta el 15/12/2026.
 -- "cada" = cada cuántos días sale el vuelo (1 = diario, 2 = día por medio).
-INSERT INTO vuelos (origen_id, destino_id, fecha, hora_salida, hora_llegada, precio, filas, asientos_disponibles)
-SELECT ao.id, ad.id, d::date, r.salida::time, r.llegada::time, r.precio, r.filas, r.filas * 6
+INSERT INTO vuelos (origen_id, destino_id, fecha, hora_salida, hora_llegada, precio, filas, asientos_disponibles, filas_ejecutiva, precio_ejecutiva)
+SELECT ao.id, ad.id, d::date, r.salida::time, r.llegada::time, r.precio, r.filas, r.filas * 6,
+       CASE WHEN r.filas >= 25 THEN 4 WHEN r.filas >= 10 THEN 3 ELSE 1 END, ROUND(r.precio * 2.5, 2)
 FROM (VALUES
     -- Nacionales
     ('UIO', 'GYE', '09:45', '10:40',  89.00, 20, 1),
@@ -206,15 +217,19 @@ CROSS JOIN generate_series(date '2026-11-16', date '2026-12-15', interval '1 day
 WHERE (d::date - date '2026-11-16') % r.cada = 0;
 
 -- Vuelo pequeño (2 filas, 12 asientos) para probar concurrencia y vuelo agotado.
-INSERT INTO vuelos (origen_id, destino_id, fecha, hora_salida, hora_llegada, precio, filas, asientos_disponibles)
-SELECT ao.id, ad.id, DATE '2026-12-15', TIME '20:00', TIME '20:55', 95.00, 2, 12
+INSERT INTO vuelos (origen_id, destino_id, fecha, hora_salida, hora_llegada, precio, filas, asientos_disponibles, filas_ejecutiva, precio_ejecutiva)
+SELECT ao.id, ad.id, DATE '2026-12-15', TIME '20:00', TIME '20:55', 95.00, 2, 12, 1, 237.50
 FROM aeropuertos ao, aeropuertos ad
 WHERE ao.codigo = 'UIO' AND ad.codigo = 'GYE';
 
 CREATE VIEW vuelos_detalle WITH (security_invoker = true) AS
 SELECT v.*,
        ao.ciudad AS origen,  ao.codigo AS origen_codigo,  po.nombre AS origen_pais,
-       ad.ciudad AS destino, ad.codigo AS destino_codigo, pd.nombre AS destino_pais
+       ao.latitud AS origen_latitud,  ao.longitud AS origen_longitud,
+       ad.ciudad AS destino, ad.codigo AS destino_codigo, pd.nombre AS destino_pais,
+       ad.latitud AS destino_latitud, ad.longitud AS destino_longitud,
+       (SELECT COUNT(*)::int FROM reserva_asientos ra
+         WHERE ra.vuelo_id = v.id AND ra.estado = 'ocupado' AND ra.clase = 'ejecutiva') AS ocupados_ejecutiva
 FROM vuelos v
 JOIN aeropuertos ao ON ao.id = v.origen_id
 JOIN paises po      ON po.id = ao.pais_id

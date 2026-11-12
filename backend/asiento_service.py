@@ -23,8 +23,15 @@ class AsientoService:
     def tipo(self, asiento):
         return self.TIPOS[asiento[-1]]
 
-    def precio(self, asiento, precio_base):
-        base = Decimal(str(precio_base))
+    def clase(self, asiento, filas_ejecutiva):
+        return "ejecutiva" if int(asiento[:-1]) <= filas_ejecutiva else "economica"
+
+    def precio(self, asiento, vuelo):
+        """Tarifa del asiento según su clase (por fila) más el recargo de ventana."""
+        if self.clase(asiento, vuelo["filas_ejecutiva"]) == "ejecutiva":
+            base = Decimal(str(vuelo["precio_ejecutiva"]))
+        else:
+            base = Decimal(str(vuelo["precio"]))
         if self.tipo(asiento) == "ventana":
             return base + self.recargo_ventana
         return base
@@ -65,6 +72,7 @@ class AsientoService:
         return {
             "vuelo": vuelo,
             "filas": vuelo["filas"],
+            "filas_ejecutiva": vuelo["filas_ejecutiva"],
             "columnas": self.COLUMNAS,
             "tipos": self.TIPOS,
             "recargo_ventana": self.recargo_ventana,

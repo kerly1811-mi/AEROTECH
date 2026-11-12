@@ -2,9 +2,11 @@ from datetime import datetime
 
 
 class VueloService:
-    CAMPOS = ["origen_id", "destino_id", "fecha", "hora_salida", "hora_llegada", "precio", "filas"]
+    CAMPOS = ["origen_id", "destino_id", "fecha", "hora_salida", "hora_llegada", "precio", "filas",
+              "filas_ejecutiva", "precio_ejecutiva"]
     DETALLE = "SELECT * FROM vuelos_detalle"
     ASIENTOS_POR_FILA = 6
+    IDX_FILAS = 6  # posición de "filas" en la tupla que devuelve valores()
     MAXIMO_FILAS = 40
 
     def __init__(self, db):
@@ -40,6 +42,19 @@ class VueloService:
                 errores.append({"campo": "filas", "error": f"Debe estar entre 1 y {self.MAXIMO_FILAS}"})
         except (TypeError, ValueError):
             errores.append({"campo": "filas", "error": "Debe ser entero"})
+        try:
+            if float(data["precio_ejecutiva"]) <= 0:
+                errores.append({"campo": "precio_ejecutiva", "error": "Debe ser mayor a 0"})
+        except (TypeError, ValueError):
+            errores.append({"campo": "precio_ejecutiva", "error": "Debe ser numérico"})
+        try:
+            filas_ejecutiva = int(data["filas_ejecutiva"])
+            if filas_ejecutiva < 0:
+                errores.append({"campo": "filas_ejecutiva", "error": "No puede ser negativo"})
+            elif not any(e["campo"] == "filas" for e in errores) and filas_ejecutiva > int(data["filas"]):
+                errores.append({"campo": "filas_ejecutiva", "error": "No puede superar el total de filas"})
+        except (TypeError, ValueError):
+            errores.append({"campo": "filas_ejecutiva", "error": "Debe ser entero"})
         ids = {}
         for campo in ["origen_id", "destino_id"]:
             try:
@@ -68,7 +83,9 @@ class VueloService:
             str(data["hora_salida"])[:5],
             str(data["hora_llegada"])[:5],
             data["precio"],
-            int(data["filas"])
+            int(data["filas"]),
+            int(data["filas_ejecutiva"]),
+            data["precio_ejecutiva"]
         )
 
     def aeropuertos(self):
@@ -111,10 +128,11 @@ class VueloService:
 
         valores = self.valores(data)
         vuelo = self.db.execute("""
-            INSERT INTO vuelos (origen_id, destino_id, fecha, hora_salida, hora_llegada, precio, filas, asientos_disponibles)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            INSERT INTO vuelos (origen_id, destino_id, fecha, hora_salida, hora_llegada, precio, filas,
+                                filas_ejecutiva, precio_ejecutiva, asientos_disponibles)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             RETURNING id
-        """, valores + (valores[-1] * self.ASIENTOS_POR_FILA,), returning=True)
+        """, valores + (valores[self.IDX_FILAS] * self.ASIENTOS_POR_FILA,), returning=True)
         return {"mensaje": "Vuelo creado", "vuelo": self.obtener(vuelo["id"])[0]}, 201
 
     def actualizar(self, vuelo_id, data):
@@ -132,17 +150,18 @@ class VueloService:
             WHERE vuelo_id = %s AND estado = 'ocupado'
         """, (vuelo_id,))
         fila_maxima = max((int(o["asiento"][:-1]) for o in ocupados), default=0)
-        if valores[-1] < fila_maxima:
+        if valores[self.IDX_FILAS] < fila_maxima:
             return {
                 "error": "Datos inválidos",
                 "errores": [{"campo": "filas", "error": f"Hay asientos reservados hasta la fila {fila_maxima}"}]
             }, 400
 
-        disponibles = valores[-1] * self.ASIENTOS_POR_FILA - len(ocupados)
+        disponibles = valores[self.IDX_FILAS] * self.ASIENTOS_POR_FILA - len(ocupados)
         vuelo = self.db.execute("""
             UPDATE vuelos
             SET origen_id = %s, destino_id = %s, fecha = %s, hora_salida = %s, hora_llegada = %s,
-                precio = %s, filas = %s, asientos_disponibles = %s, version = version + 1
+                precio = %s, filas = %s, filas_ejecutiva = %s, precio_ejecutiva = %s,
+                asientos_disponibles = %s, version = version + 1
             WHERE id = %s AND version = %s
             RETURNING id
         """, valores + (disponibles, vuelo_id, data["version"]), returning=True)

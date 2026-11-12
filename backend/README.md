@@ -104,7 +104,8 @@ APE4-PRACTICA/
 | GET | `/api/reservas` | `reservas.ver_todas` |
 | GET | `/api/reservas/{id}` | Propietario o `reservas.ver_todas` |
 | PUT | `/api/reservas/{id}/cancelar` | `reservas.cancelar_propias` / `reservas.cancelar_todas` |
-| GET | `/api/reservas/{id}/comprobante` | Propietario o `reservas.ver_todas` — **responde XML** |
+| GET | `/api/reservas/{id}/comprobante` | Propietario o `reservas.ver_todas` — **responde XML**, un solo comprobante por viaje (ida y vuelta) |
+| GET | `/api/equipaje` | `vuelos.ver` — tarifas del equipaje de bodega adicional |
 
 ---
 
@@ -113,19 +114,26 @@ APE4-PRACTICA/
 **POST** `/api/reservas`
 `Authorization: Bearer <token>`
 ```json
-{ "vuelo_id": 1, "cantidad": 2, "version": 1 }
+{
+  "tramos": [
+    { "vuelo_id": 1, "asientos": ["3A", "3B"], "version": 1 },
+    { "vuelo_id": 7, "asientos": ["2C", "2D"], "version": 4 }
+  ]
+}
 ```
+Cada tramo acepta `"equipaje": {"3A": 1}` (maletas de bodega adicionales por asiento, 0 a 2; 1.ª $85 y 2.ª $135). Las reservas de un mismo viaje comparten `viaje_id`: se facturan en un solo comprobante y se cancelan juntas.
+
+Un tramo = solo ida; dos tramos = ida y vuelta. Se crea una reserva por tramo en **una sola transacción** (si uno falla, no se guarda ninguno). La clase de cada asiento (Ejecutiva o Económica) depende de su fila: las primeras `filas_ejecutiva` filas del vuelo son Ejecutiva y se cobran con `precio_ejecutiva`; el resto con `precio`. Las ventanas (A/F) suman un recargo.
 
 **201 Created**
 ```json
 {
-  "mensaje": "Reserva creada",
-  "reserva_id": 1,
-  "subtotal": 178.0,
-  "iva": 26.7,
-  "total": 204.7,
-  "estado": "confirmada",
-  "version": 1
+  "mensaje": "Reservas creadas",
+  "reservas": [
+    { "reserva_id": 1, "vuelo_id": 1, "asientos": ["3A", "3B"], "subtotal": 178.0, "iva": 26.7, "total": 204.7, "estado": "confirmada" },
+    { "reserva_id": 2, "vuelo_id": 7, "asientos": ["2C", "2D"], "subtotal": 640.0, "iva": 96.0, "total": 736.0, "estado": "confirmada" }
+  ],
+  "total": 940.7
 }
 ```
 

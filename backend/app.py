@@ -9,6 +9,7 @@ from autenticacion_service import AutenticacionService
 from usuario_service import UsuarioService
 from vuelo_service import VueloService
 from asiento_service import AsientoService
+from equipaje_service import EquipajeService
 from factura_service import FacturaService
 from reserva_service import ReservaService
 
@@ -34,7 +35,8 @@ usuario_service = UsuarioService(db, autenticacion_service)
 vuelo_service = VueloService(db)
 asiento_service = AsientoService(db)
 factura_service = FacturaService()
-reserva_service = ReservaService(db, factura_service, asiento_service)
+equipaje_service = EquipajeService()
+reserva_service = ReservaService(db, factura_service, asiento_service, equipaje_service)
 
 
 @app.route("/")
@@ -106,6 +108,12 @@ def mapa_asientos(vuelo_id):
     return asiento_service.mapa(vuelo_id)
 
 
+@app.route("/api/equipaje", methods=["GET"])
+@autenticacion_service.token_requerido("vuelos.ver")
+def tarifas_equipaje():
+    return equipaje_service.tarifas(), 200
+
+
 @app.route("/api/vuelos", methods=["POST"])
 @autenticacion_service.token_requerido("vuelos.crear")
 def crear_vuelo():
@@ -157,10 +165,10 @@ def cancelar_reserva(reserva_id):
 @app.route("/api/reservas/<int:reserva_id>/comprobante", methods=["GET"])
 @autenticacion_service.token_requerido()
 def comprobante(reserva_id):
-    reserva, codigo = reserva_service.obtener(reserva_id, g.usuario, g.permisos)
+    reservas, codigo = reserva_service.obtener_viaje(reserva_id, g.usuario, g.permisos)
     if codigo != 200:
-        return reserva, codigo
-    numero, xml = factura_service.generar_xml(reserva)
+        return reservas, codigo
+    numero, xml = factura_service.generar_xml(reservas)
     return Response(
         xml,
         status=200,
