@@ -2,7 +2,8 @@ from datetime import datetime
 
 
 class VueloService:
-    CAMPOS = ["origen", "destino", "fecha", "hora_salida", "hora_llegada", "precio", "filas"]
+    CAMPOS = ["origen_id", "destino_id", "fecha", "hora_salida", "hora_llegada", "precio", "filas"]
+    DETALLE = "SELECT * FROM vuelos_detalle"
     ASIENTOS_POR_FILA = 6
     MAXIMO_FILAS = 40
 
@@ -39,14 +40,30 @@ class VueloService:
                 errores.append({"campo": "filas", "error": f"Debe estar entre 1 y {self.MAXIMO_FILAS}"})
         except (TypeError, ValueError):
             errores.append({"campo": "filas", "error": "Debe ser entero"})
-        if str(data["origen"]).strip().lower() == str(data["destino"]).strip().lower():
-            errores.append({"campo": "destino", "error": "Debe ser distinto al origen"})
+        ids = {}
+        for campo in ["origen_id", "destino_id"]:
+            try:
+                ids[campo] = int(data[campo])
+            except (TypeError, ValueError):
+                errores.append({"campo": campo, "error": "Debe seleccionar un aeropuerto de la lista"})
+        if len(ids) == 2:
+            if ids["origen_id"] == ids["destino_id"]:
+                errores.append({"campo": "destino_id", "error": "Debe ser distinto al origen"})
+            else:
+                existentes = {
+                    f["id"] for f in self.db.fetch_all(
+                        "SELECT id FROM aeropuertos WHERE id = ANY(%s)", (list(ids.values()),)
+                    )
+                }
+                for campo, valor in ids.items():
+                    if valor not in existentes:
+                        errores.append({"campo": campo, "error": "El aeropuerto no existe"})
         return errores
 
     def valores(self, data):
         return (
-            str(data["origen"]).strip(),
-            str(data["destino"]).strip(),
+            int(data["origen_id"]),
+            int(data["destino_id"]),
             data["fecha"],
             str(data["hora_salida"])[:5],
             str(data["hora_llegada"])[:5],
@@ -54,15 +71,24 @@ class VueloService:
             int(data["filas"])
         )
 
-    def listar(self, origen=None, destino=None, fecha=None):
-        sql = "SELECT * FROM vuelos WHERE 1=1"
+    def aeropuertos(self):
+        aeropuertos = self.db.fetch_all("""
+            SELECT a.id, a.codigo, a.ciudad, a.nombre, p.nombre AS pais, p.codigo AS pais_codigo
+            FROM aeropuertos a JOIN paises p ON p.id = a.pais_id
+            ORDER BY p.nombre, a.ciudad
+        """)
+        return {"total": len(aeropuertos), "aeropuertos": aeropuertos}, 200
+
+    def listar(self, origen_id=None, destino_id=None, fecha=None):
+        sql = self.DETALLE + " WHERE 1=1"
         params = []
-        if origen:
-            sql += " AND origen ILIKE %s"
-            params.append(origen)
-        if destino:
-            sql += " AND destino ILIKE %s"
-            params.append(destino)
+        for columna, valor in (("origen_id", origen_id), ("destino_id", destino_id)):
+            if valor:
+                try:
+                    params.append(int(valor))
+                except ValueError:
+                    return {"error": f"{columna} debe ser un entero"}, 400
+                sql += f" AND {columna} = %s"
         if fecha:
             sql += " AND fecha = %s"
             params.append(fecha)
@@ -71,7 +97,7 @@ class VueloService:
         return {"total": len(vuelos), "vuelos": vuelos}, 200
 
     def obtener(self, vuelo_id):
-        vuelo = self.db.fetch_one("SELECT * FROM vuelos WHERE id = %s", (vuelo_id,))
+        vuelo = self.db.fetch_one(self.DETALLE + " WHERE id = %s", (vuelo_id,))
         if not vuelo:
             return {"error": "Vuelo no encontrado"}, 404
         return vuelo, 200
@@ -85,11 +111,11 @@ class VueloService:
 
         valores = self.valores(data)
         vuelo = self.db.execute("""
-            INSERT INTO vuelos (origen, destino, fecha, hora_salida, hora_llegada, precio, filas, asientos_disponibles)
+            INSERT INTO vuelos (origen_id, destino_id, fecha, hora_salida, hora_llegada, precio, filas, asientos_disponibles)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-            RETURNING *
+            RETURNING id
         """, valores + (valores[-1] * self.ASIENTOS_POR_FILA,), returning=True)
-        return {"mensaje": "Vuelo creado", "vuelo": vuelo}, 201
+        return {"mensaje": "Vuelo creado", "vuelo": self.obtener(vuelo["id"])[0]}, 201
 
     def actualizar(self, vuelo_id, data):
         if not data:
@@ -115,16 +141,16 @@ class VueloService:
         disponibles = valores[-1] * self.ASIENTOS_POR_FILA - len(ocupados)
         vuelo = self.db.execute("""
             UPDATE vuelos
-            SET origen = %s, destino = %s, fecha = %s, hora_salida = %s, hora_llegada = %s,
+            SET origen_id = %s, destino_id = %s, fecha = %s, hora_salida = %s, hora_llegada = %s,
                 precio = %s, filas = %s, asientos_disponibles = %s, version = version + 1
             WHERE id = %s AND version = %s
-            RETURNING *
+            RETURNING id
         """, valores + (disponibles, vuelo_id, data["version"]), returning=True)
 
         if vuelo:
-            return {"mensaje": "Vuelo actualizado", "vuelo": vuelo}, 200
+            return {"mensaje": "Vuelo actualizado", "vuelo": self.obtener(vuelo_id)[0]}, 200
 
-        actual = self.db.fetch_one("SELECT * FROM vuelos WHERE id = %s", (vuelo_id,))
+        actual = self.db.fetch_one(self.DETALLE + " WHERE id = %s", (vuelo_id,))
         if not actual:
             return {"error": "Vuelo no encontrado"}, 404
         return {

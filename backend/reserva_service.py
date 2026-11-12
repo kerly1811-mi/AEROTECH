@@ -6,7 +6,9 @@ from psycopg2 import errors
 class ReservaService:
     CONSULTA = """
         SELECT r.id, r.usuario_id, u.nombre AS cliente, u.correo, r.vuelo_id,
-               v.origen, v.destino, v.fecha AS fecha_vuelo, v.hora_salida, v.precio,
+               ao.ciudad AS origen, ad.ciudad AS destino,
+               ao.codigo AS origen_codigo, ad.codigo AS destino_codigo,
+               v.fecha AS fecha_vuelo, v.hora_salida, v.precio,
                r.cantidad_asientos, r.total, r.estado, r.fecha_reserva, r.version,
                COALESCE((
                    SELECT json_agg(json_build_object(
@@ -17,6 +19,8 @@ class ReservaService:
                ), '[]'::json) AS asientos
         FROM reservas r
         JOIN vuelos v ON v.id = r.vuelo_id
+        JOIN aeropuertos ao ON ao.id = v.origen_id
+        JOIN aeropuertos ad ON ad.id = v.destino_id
         JOIN usuarios u ON u.id = r.usuario_id
     """
 
@@ -40,7 +44,7 @@ class ReservaService:
         conn = self.db.get_connection()
         try:
             with conn.cursor() as cursor:
-                cursor.execute("SELECT * FROM vuelos WHERE id = %s", (vuelo_id,))
+                cursor.execute("SELECT * FROM vuelos_detalle WHERE id = %s", (vuelo_id,))
                 vuelo = cursor.fetchone()
                 if not vuelo:
                     return {"error": "Vuelo no encontrado"}, 404
@@ -71,7 +75,7 @@ class ReservaService:
 
                 if cursor.rowcount == 0:
                     conn.rollback()
-                    cursor.execute("SELECT * FROM vuelos WHERE id = %s", (vuelo_id,))
+                    cursor.execute("SELECT * FROM vuelos_detalle WHERE id = %s", (vuelo_id,))
                     return {
                         "error": "Conflicto de concurrencia",
                         "mensaje": "Otro usuario reservó en este vuelo mientras usted elegía, revise el mapa nuevamente",

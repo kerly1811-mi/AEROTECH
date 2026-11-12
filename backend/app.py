@@ -85,7 +85,13 @@ def perfil():
 @app.route("/api/vuelos", methods=["GET"])
 @autenticacion_service.token_requerido("vuelos.ver")
 def listar_vuelos():
-    return vuelo_service.listar(request.args.get("origen"), request.args.get("destino"), request.args.get("fecha"))
+    return vuelo_service.listar(request.args.get("origen_id"), request.args.get("destino_id"), request.args.get("fecha"))
+
+
+@app.route("/api/aeropuertos", methods=["GET"])
+@autenticacion_service.token_requerido("vuelos.ver")
+def listar_aeropuertos():
+    return vuelo_service.aeropuertos()
 
 
 @app.route("/api/vuelos/<int:vuelo_id>", methods=["GET"])

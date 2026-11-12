@@ -59,7 +59,7 @@ class AsientoService:
         return None, self.ordenar(normalizados)
 
     def mapa(self, vuelo_id):
-        vuelo = self.db.fetch_one("SELECT * FROM vuelos WHERE id = %s", (vuelo_id,))
+        vuelo = self.db.fetch_one("SELECT * FROM vuelos_detalle WHERE id = %s", (vuelo_id,))
         if not vuelo:
             return {"error": "Vuelo no encontrado"}, 404
         return {

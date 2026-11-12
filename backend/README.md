@@ -49,7 +49,9 @@ APE4-PRACTICA/
 | `rol_permisos` | Asignación de permisos a cada rol |
 | `usuarios` | Usuarios con contraseña encriptada y rol |
 | `tokens` | Tokens JWT emitidos, con expiración y estado |
-| `vuelos` | Vuelos disponibles (con columna `version`) |
+| `paises` | Catálogo de países |
+| `aeropuertos` | Catálogo de aeropuertos (ciudad, código IATA, país) |
+| `vuelos` | Vuelos entre dos aeropuertos (`origen_id`, `destino_id`, con columna `version`) |
 | `reservas` | Reservas de los usuarios (con columna `version`) |
 
 ---
@@ -87,7 +89,8 @@ APE4-PRACTICA/
 ### Vuelos
 | Método | Endpoint | Permiso |
 |---|---|---|
-| GET | `/api/vuelos?origen=&destino=&fecha=` | `vuelos.ver` |
+| GET | `/api/aeropuertos` | `vuelos.ver` |
+| GET | `/api/vuelos?origen_id=&destino_id=&fecha=` | `vuelos.ver` |
 | GET | `/api/vuelos/{id}` | `vuelos.ver` |
 | POST | `/api/vuelos` | `vuelos.crear` |
 | PUT | `/api/vuelos/{id}` | `vuelos.editar` |
