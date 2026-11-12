@@ -1,7 +1,8 @@
-import 'package:aerotech_app/models/vuelo.dart';
+import 'package:aerotech_app/models/aeropuerto.dart';
 import 'package:aerotech_app/pages/reservas_page.dart';
-import 'package:aerotech_app/pages/seleccion_asientos_page.dart';
+import 'package:aerotech_app/pages/resultados_vuelos_page.dart';
 import 'package:aerotech_app/services/vuelo_service.dart';
+import 'package:aerotech_app/widgets/aeropuerto_field.dart';
 import 'package:aerotech_app/widgets/boton_cerrar_sesion.dart';
 import 'package:aerotech_app/widgets/error_view.dart';
 import 'package:flutter/material.dart';
@@ -17,13 +18,14 @@ class VuelosPage extends StatefulWidget {
 
 class _VuelosPageState extends State<VuelosPage> {
   final VueloService vueloService = VueloService();
-  final origenController = TextEditingController();
-  final destinoController = TextEditingController();
 
-  late Future<List<Vuelo>> futureVuelos;
+  late Future<List<Aeropuerto>> futureAeropuertos;
+  Aeropuerto? _origen;
+  Aeropuerto? _destino;
+  int _camposKey = 0;
+
   String? _fecha;
 
-  // Solo visual por ahora: aún no se envían al servidor.
   bool _idaYVuelta = true;
   String? _fechaRegreso;
   int _adultos = 1;
@@ -33,32 +35,53 @@ class _VuelosPageState extends State<VuelosPage> {
   @override
   void initState() {
     super.initState();
-    _reload();
+    _cargarAeropuertos();
   }
 
-  @override
-  void dispose() {
-    origenController.dispose();
-    destinoController.dispose();
-    super.dispose();
+  void _cargarAeropuertos() {
+    setState(() => futureAeropuertos = vueloService.getAeropuertos());
   }
 
-  void _reload() {
-    setState(() {
-      futureVuelos = vueloService.getVuelos(
-        origen: origenController.text.trim(),
-        destino: destinoController.text.trim(),
-        fecha: _fecha,
-      );
-    });
+  void _buscar() {
+    final origen = _origen;
+    final destino = _destino;
+
+    String? falta;
+    if (origen == null || destino == null) {
+      falta = 'Seleccione el origen y el destino de la lista.';
+    } else if (_fecha == null || (_idaYVuelta && _fechaRegreso == null)) {
+      falta = _idaYVuelta ? 'Escoja las fechas de ida y vuelta.' : 'Escoja la fecha de ida.';
+    }
+    if (falta != null) {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(content: Text(falta)));
+      return;
+    }
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => ResultadosVuelosPage(
+          origen: origen!,
+          destino: destino!,
+          fecha: _fecha!,
+          fechaRegreso: _idaYVuelta ? _fechaRegreso : null,
+          idaYVuelta: _idaYVuelta,
+          pasajeros: _resumenPasajeros,
+        ),
+      ),
+    );
   }
 
   void _limpiar() {
-    origenController.clear();
-    destinoController.clear();
-    _fecha = null;
-    _fechaRegreso = null;
-    _reload();
+    setState(() {
+      _origen = null;
+      _destino = null;
+      _camposKey++;
+      _fecha = null;
+      _fechaRegreso = null;
+    });
   }
 
   String _iso(DateTime fecha) => fecha.toIso8601String().substring(0, 10);
@@ -85,8 +108,10 @@ class _VuelosPageState extends State<VuelosPage> {
         saveText: 'Aceptar',
       );
       if (rango == null) return;
-      _fecha = _iso(rango.start);
-      _fechaRegreso = _iso(rango.end);
+      setState(() {
+        _fecha = _iso(rango.start);
+        _fechaRegreso = _iso(rango.end);
+      });
     } else {
       final fecha = await showDatePicker(
         context: context,
@@ -96,10 +121,11 @@ class _VuelosPageState extends State<VuelosPage> {
         helpText: 'Escoger fecha de ida',
       );
       if (fecha == null) return;
-      _fecha = _iso(fecha);
-      _fechaRegreso = null;
+      setState(() {
+        _fecha = _iso(fecha);
+        _fechaRegreso = null;
+      });
     }
-    _reload();
   }
 
   String get _textoFechas {
@@ -195,15 +221,7 @@ class _VuelosPageState extends State<VuelosPage> {
     }
   }
 
-  Future<void> _elegirAsientos(Vuelo vuelo) async {
-    final result = await Navigator.push(
-      context,
-      MaterialPageRoute(builder: (context) => SeleccionAsientosPage(vuelo: vuelo)),
-    );
-    if (result == true) _reload();
-  }
-
-  Widget _buildFiltros() {
+  Widget _buildFiltros(List<Aeropuerto> opciones) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
       child: Column(
@@ -217,12 +235,11 @@ class _VuelosPageState extends State<VuelosPage> {
                 ButtonSegment(value: false, icon: Icon(Icons.arrow_right_alt), label: Text('Solo ida')),
               ],
               selected: {_idaYVuelta},
-              onSelectionChanged: (valor) {
+              onSelectionChanged: (valor) => setState(() {
                 _idaYVuelta = valor.first;
                 _fecha = null;
                 _fechaRegreso = null;
-                _reload();
-              },
+              }),
             ),
           ),
           const SizedBox(height: 8),
@@ -236,30 +253,40 @@ class _VuelosPageState extends State<VuelosPage> {
           ),
           const SizedBox(height: 8),
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Expanded(
-                child: TextField(
-                  controller: origenController,
-                  decoration: const InputDecoration(
-                    labelText: 'Origen',
-                    prefixIcon: Icon(Icons.flight_takeoff),
-                    border: OutlineInputBorder(),
-                    isDense: true,
-                  ),
-                  onSubmitted: (_) => _reload(),
+                child: AeropuertoField(
+                  key: ValueKey('origen$_camposKey'),
+                  label: 'Origen',
+                  icon: Icons.flight_takeoff,
+                  dense: true,
+                  opciones: opciones.where((a) => a != _destino).toList(),
+                  valor: _origen,
+                  onChanged: (a) => setState(() => _origen = a),
+                  validator: (_) => null,
                 ),
               ),
-              const SizedBox(width: 8),
+              IconButton(
+                tooltip: 'Invertir origen y destino',
+                icon: const Icon(Icons.swap_horiz),
+                onPressed: () => setState(() {
+                  final tmp = _origen;
+                  _origen = _destino;
+                  _destino = tmp;
+                  _camposKey++;
+                }),
+              ),
               Expanded(
-                child: TextField(
-                  controller: destinoController,
-                  decoration: const InputDecoration(
-                    labelText: 'Destino',
-                    prefixIcon: Icon(Icons.flight_land),
-                    border: OutlineInputBorder(),
-                    isDense: true,
-                  ),
-                  onSubmitted: (_) => _reload(),
+                child: AeropuertoField(
+                  key: ValueKey('destino$_camposKey'),
+                  label: 'Destino',
+                  icon: Icons.flight_land,
+                  dense: true,
+                  opciones: opciones.where((a) => a != _origen).toList(),
+                  valor: _destino,
+                  onChanged: (a) => setState(() => _destino = a),
+                  validator: (_) => null,
                 ),
               ),
             ],
@@ -280,64 +307,13 @@ class _VuelosPageState extends State<VuelosPage> {
               TextButton(onPressed: _limpiar, child: const Text('Limpiar')),
               const SizedBox(width: 8),
               FilledButton.icon(
-                onPressed: _reload,
+                onPressed: _buscar,
                 icon: const Icon(Icons.search),
-                label: const Text('Buscar'),
+                label: const Text('Buscar Vuelos'),
               ),
             ],
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildVuelo(Vuelo vuelo) {
-    final sinAsientos = vuelo.asientosDisponibles == 0;
-    return Card(
-      key: ValueKey(vuelo.id),
-      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Row(
-          children: [
-            const CircleAvatar(child: Icon(Icons.flight)),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '${vuelo.origen} → ${vuelo.destino}',
-                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                  ),
-                  Text('${vuelo.fecha}   ${vuelo.horaSalida} - ${vuelo.horaLlegada}'),
-                  Text(
-                    sinAsientos
-                        ? 'Agotado'
-                        : '${vuelo.asientosDisponibles} de ${vuelo.capacidad} asientos libres',
-                    style: TextStyle(color: sinAsientos ? Colors.red : Colors.grey[700]),
-                  ),
-                ],
-              ),
-            ),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Text('desde', style: TextStyle(fontSize: 12, color: Colors.grey[600])),
-                Text(
-                  '\$${vuelo.precio.toStringAsFixed(2)}',
-                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 6),
-                FilledButton.icon(
-                  onPressed: sinAsientos ? null : () => _elegirAsientos(vuelo),
-                  icon: const Icon(Icons.event_seat, size: 18),
-                  label: const Text('Asientos'),
-                ),
-              ],
-            ),
-          ],
-        ),
       ),
     );
   }
@@ -348,11 +324,6 @@ class _VuelosPageState extends State<VuelosPage> {
       appBar: AppBar(
         title: Text(widget.inicio ? 'AeroTech' : 'Buscar vuelos'),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _reload,
-            tooltip: 'Recargar',
-          ),
           const BotonCerrarSesion(),
         ],
       ),
@@ -373,31 +344,51 @@ class _VuelosPageState extends State<VuelosPage> {
                 ),
               ),
             ),
-          _buildFiltros(),
           Expanded(
-            child: FutureBuilder<List<Vuelo>>(
-              future: futureVuelos,
+            child: FutureBuilder<List<Aeropuerto>>(
+              future: futureAeropuertos,
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(child: CircularProgressIndicator());
                 }
                 if (snapshot.hasError) {
-                  return ErrorView(error: snapshot.error, onRetry: _reload);
+                  return ErrorView(error: snapshot.error, onRetry: _cargarAeropuertos);
                 }
-
-                final vuelos = snapshot.data ?? [];
-                if (vuelos.isEmpty) {
-                  return const Center(child: Text('No hay vuelos que coincidan con la búsqueda.'));
-                }
-
-                return ListView.builder(
-                  itemCount: vuelos.length,
-                  itemBuilder: (context, index) => _buildVuelo(vuelos[index]),
+                return Column(
+                  children: [
+                    _buildFiltros(snapshot.data ?? []),
+                    const Expanded(child: _MensajeInicial()),
+                  ],
                 );
               },
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _MensajeInicial extends StatelessWidget {
+  const _MensajeInicial();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Center(
+      child: Padding(
+        padding: EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.flight, size: 64, color: Colors.grey),
+            SizedBox(height: 12),
+            Text(
+              'Elige origen, destino y fechas para ver los vuelos disponibles.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.grey),
+            ),
+          ],
+        ),
       ),
     );
   }

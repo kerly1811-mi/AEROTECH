@@ -1,8 +1,10 @@
 import 'package:aerotech_app/widgets/boton_cerrar_sesion.dart';
+import 'package:aerotech_app/models/aeropuerto.dart';
 import 'package:aerotech_app/models/vuelo.dart';
 import 'package:aerotech_app/pages/login_page.dart';
 import 'package:aerotech_app/services/api_service.dart';
 import 'package:aerotech_app/services/vuelo_service.dart';
+import 'package:aerotech_app/widgets/aeropuerto_field.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -17,8 +19,6 @@ class VueloFormPage extends StatefulWidget {
 class _VueloFormPageState extends State<VueloFormPage> {
   final _formKey = GlobalKey<FormState>();
 
-  final origenController = TextEditingController();
-  final destinoController = TextEditingController();
   final fechaController = TextEditingController();
   final salidaController = TextEditingController();
   final llegadaController = TextEditingController();
@@ -30,18 +30,60 @@ class _VueloFormPageState extends State<VueloFormPage> {
   bool _isSaving = false;
   late int _currentVersion;
 
-  static final RegExp _textoValido = RegExp(r'^[a-zA-ZÀ-ÿ ]+$');
+  List<Aeropuerto> _aeropuertos = [];
+  Aeropuerto? _origen;
+  Aeropuerto? _destino;
+  Object? _errorCarga;
+  bool _cargandoAeropuertos = true;
+  int _camposKey = 0;
 
   @override
   void initState() {
     super.initState();
     _currentVersion = widget.vuelo?.version ?? 1;
     if (widget.vuelo != null) _cargar(widget.vuelo!);
+    _cargarAeropuertos();
+  }
+
+  Future<void> _cargarAeropuertos() async {
+    setState(() {
+      _cargandoAeropuertos = true;
+      _errorCarga = null;
+    });
+    try {
+      final lista = await vueloService.getAeropuertos();
+      if (!mounted) return;
+      setState(() {
+        _aeropuertos = lista;
+        final vuelo = widget.vuelo;
+        if (vuelo != null) _asignarRuta(vuelo);
+        _cargandoAeropuertos = false;
+      });
+    } on SessionExpiredException catch (e) {
+      if (mounted) LoginPage.irAlLogin(context, e.message);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _errorCarga = e;
+        _cargandoAeropuertos = false;
+      });
+    }
+  }
+
+  void _asignarRuta(Vuelo vuelo) {
+    Aeropuerto? buscar(int id) {
+      for (final a in _aeropuertos) {
+        if (a.id == id) return a;
+      }
+      return null;
+    }
+
+    _origen = buscar(vuelo.origenId);
+    _destino = buscar(vuelo.destinoId);
+    _camposKey++;
   }
 
   void _cargar(Vuelo vuelo) {
-    origenController.text = vuelo.origen;
-    destinoController.text = vuelo.destino;
     fechaController.text = vuelo.fecha;
     salidaController.text = vuelo.horaSalida;
     llegadaController.text = vuelo.horaLlegada;
@@ -51,8 +93,6 @@ class _VueloFormPageState extends State<VueloFormPage> {
 
   @override
   void dispose() {
-    origenController.dispose();
-    destinoController.dispose();
     fechaController.dispose();
     salidaController.dispose();
     llegadaController.dispose();
@@ -99,22 +139,14 @@ class _VueloFormPageState extends State<VueloFormPage> {
     }
   }
 
-  String? _validateCiudad(String? value) {
-    if (value == null || value.trim().isEmpty) {
-      return 'Este campo es obligatorio.';
-    }
-    if (!_textoValido.hasMatch(value.trim())) {
-      return 'Solo se permiten letras y espacios.';
-    }
+  String? _validateOrigen(Aeropuerto? value) {
+    if (value == null) return 'Seleccione un aeropuerto de la lista.';
     return null;
   }
 
-  String? _validateDestino(String? value) {
-    final error = _validateCiudad(value);
-    if (error != null) return error;
-    if (value!.trim().toLowerCase() == origenController.text.trim().toLowerCase()) {
-      return 'El destino debe ser distinto al origen.';
-    }
+  String? _validateDestino(Aeropuerto? value) {
+    if (value == null) return 'Seleccione un aeropuerto de la lista.';
+    if (value == _origen) return 'El destino debe ser distinto al origen.';
     return null;
   }
 
@@ -176,6 +208,7 @@ class _VueloFormPageState extends State<VueloFormPage> {
       final actual = Vuelo.fromJson(e.current!);
       setState(() {
         _cargar(actual);
+        _asignarRuta(actual);
         _currentVersion = actual.version;
       });
     }
@@ -191,8 +224,10 @@ class _VueloFormPageState extends State<VueloFormPage> {
 
     final vuelo = Vuelo(
       id: widget.vuelo?.id ?? 0,
-      origen: origenController.text.trim(),
-      destino: destinoController.text.trim(),
+      origen: _origen!.ciudad,
+      destino: _destino!.ciudad,
+      origenId: _origen!.id,
+      destinoId: _destino!.id,
       fecha: fechaController.text.trim(),
       horaSalida: salidaController.text.trim(),
       horaLlegada: llegadaController.text.trim(),
@@ -243,25 +278,48 @@ class _VueloFormPageState extends State<VueloFormPage> {
               key: _formKey,
               child: Column(
                 children: [
-                  TextFormField(
-                    controller: origenController,
-                    decoration: const InputDecoration(
-                      labelText: 'Origen',
-                      prefixIcon: Icon(Icons.flight_takeoff),
-                      border: OutlineInputBorder(),
+                  if (_cargandoAeropuertos)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 24),
+                      child: CircularProgressIndicator(),
+                    )
+                  else if (_errorCarga != null)
+                    Column(
+                      children: [
+                        Text(
+                          _errorCarga is ApiException
+                              ? (_errorCarga as ApiException).message
+                              : 'No se pudieron cargar los aeropuertos.',
+                          textAlign: TextAlign.center,
+                        ),
+                        TextButton.icon(
+                          onPressed: _cargarAeropuertos,
+                          icon: const Icon(Icons.refresh),
+                          label: const Text('Reintentar'),
+                        ),
+                      ],
+                    )
+                  else ...[
+                    AeropuertoField(
+                      key: ValueKey('origen$_camposKey'),
+                      label: 'Origen',
+                      icon: Icons.flight_takeoff,
+                      opciones: _aeropuertos,
+                      valor: _origen,
+                      onChanged: (a) => _origen = a,
+                      validator: _validateOrigen,
                     ),
-                    validator: _validateCiudad,
-                  ),
-                  const SizedBox(height: 15),
-                  TextFormField(
-                    controller: destinoController,
-                    decoration: const InputDecoration(
-                      labelText: 'Destino',
-                      prefixIcon: Icon(Icons.flight_land),
-                      border: OutlineInputBorder(),
+                    const SizedBox(height: 15),
+                    AeropuertoField(
+                      key: ValueKey('destino$_camposKey'),
+                      label: 'Destino',
+                      icon: Icons.flight_land,
+                      opciones: _aeropuertos,
+                      valor: _destino,
+                      onChanged: (a) => _destino = a,
+                      validator: _validateDestino,
                     ),
-                    validator: _validateDestino,
-                  ),
+                  ],
                   const SizedBox(height: 15),
                   TextFormField(
                     controller: fechaController,
@@ -338,7 +396,7 @@ class _VueloFormPageState extends State<VueloFormPage> {
                     width: double.infinity,
                     height: 48,
                     child: ElevatedButton(
-                      onPressed: _isSaving ? null : _guardar,
+                      onPressed: _isSaving || _cargandoAeropuertos || _errorCarga != null ? null : _guardar,
                       child: _isSaving
                           ? const SizedBox(
                               height: 20,

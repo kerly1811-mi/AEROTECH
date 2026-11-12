@@ -2,6 +2,10 @@ class Vuelo {
   final int id;
   final String origen;
   final String destino;
+  final int origenId;
+  final int destinoId;
+  final String origenCodigo;
+  final String destinoCodigo;
   final String fecha;
   final String horaSalida;
   final String horaLlegada;
@@ -14,6 +18,10 @@ class Vuelo {
     required this.id,
     required this.origen,
     required this.destino,
+    this.origenId = 0,
+    this.destinoId = 0,
+    this.origenCodigo = '',
+    this.destinoCodigo = '',
     required this.fecha,
     required this.horaSalida,
     required this.horaLlegada,
@@ -30,6 +38,10 @@ class Vuelo {
       id: (json['id'] as num).toInt(),
       origen: json['origen'] ?? '',
       destino: json['destino'] ?? '',
+      origenId: (json['origen_id'] as num?)?.toInt() ?? 0,
+      destinoId: (json['destino_id'] as num?)?.toInt() ?? 0,
+      origenCodigo: json['origen_codigo'] ?? '',
+      destinoCodigo: json['destino_codigo'] ?? '',
       fecha: json['fecha'] ?? '',
       horaSalida: json['hora_salida'].toString().substring(0, 5),
       horaLlegada: json['hora_llegada'].toString().substring(0, 5),
@@ -42,8 +54,8 @@ class Vuelo {
 
   Map<String, dynamic> toJson() {
     return {
-      'origen': origen,
-      'destino': destino,
+      'origen_id': origenId,
+      'destino_id': destinoId,
       'fecha': fecha,
       'hora_salida': horaSalida,
       'hora_llegada': horaLlegada,
