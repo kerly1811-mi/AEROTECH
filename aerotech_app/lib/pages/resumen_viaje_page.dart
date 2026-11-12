@@ -2,6 +2,7 @@ import 'package:aerotech_app/models/clase.dart';
 import 'package:aerotech_app/models/equipaje.dart';
 import 'package:aerotech_app/models/pasajeros.dart';
 import 'package:aerotech_app/models/tramo.dart';
+import 'package:aerotech_app/models/vuelo.dart';
 import 'package:aerotech_app/pages/comprobante_page.dart';
 import 'package:aerotech_app/pages/login_page.dart';
 import 'package:aerotech_app/pages/seleccion_asientos_page.dart';
@@ -292,17 +293,13 @@ class _ResumenViajePageState extends State<ResumenViajePage> {
 
   Widget _mapa(TramoViaje tramo) {
     final v = tramo.vuelo;
-    if (!v.tieneCoordenadas) return const SizedBox.shrink();
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: RutaMundial(
-        origenLat: v.origenLat!,
-        origenLon: v.origenLon!,
-        destinoLat: v.destinoLat!,
-        destinoLon: v.destinoLon!,
-        origenCodigo: v.origenCodigo,
-        destinoCodigo: v.destinoCodigo,
-      ),
+    return RutaMundial(
+      origenLat: v.origenLat!,
+      origenLon: v.origenLon!,
+      destinoLat: v.destinoLat!,
+      destinoLon: v.destinoLon!,
+      origenCodigo: v.origenCodigo,
+      destinoCodigo: v.destinoCodigo,
     );
   }
 
@@ -342,6 +339,41 @@ class _ResumenViajePageState extends State<ResumenViajePage> {
               ],
             ),
             const SizedBox(height: 8),
+            LayoutBuilder(
+              builder: (context, c) {
+                final info = _infoTramo(v);
+                if (!v.tieneCoordenadas) return info;
+                // Mapa pequeño a la izquierda de la información del vuelo.
+                if (c.maxWidth >= 520) {
+                  return Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      SizedBox(width: 200, child: _mapa(tramo)),
+                      const SizedBox(width: 16),
+                      Expanded(child: info),
+                    ],
+                  );
+                }
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Center(child: SizedBox(width: 220, child: _mapa(tramo))),
+                    const SizedBox(height: 10),
+                    info,
+                  ],
+                );
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _infoTramo(Vuelo v) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
             Row(
               children: [
                 Text(v.horaSalida, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
@@ -382,9 +414,7 @@ class _ResumenViajePageState extends State<ResumenViajePage> {
                 ),
               ],
             ),
-          ],
-        ),
-      ),
+      ],
     );
   }
 
@@ -540,7 +570,6 @@ class _ResumenViajePageState extends State<ResumenViajePage> {
               ),
               const SizedBox(height: 16),
               for (var i = 0; i < _tramos.length; i++) ...[
-                _mapa(_tramos[i]),
                 _tarjetaTramo(_tramos[i], i == 1 ? 'Vuelo de regreso' : 'Vuelo de ida'),
                 _tarjetaEquipaje(i),
               ],

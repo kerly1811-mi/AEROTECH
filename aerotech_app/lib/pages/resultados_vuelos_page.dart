@@ -237,6 +237,86 @@ class _ResultadosVuelosPageState extends State<ResultadosVuelosPage> {
     );
   }
 
+  /// Hay cupo para todos los pasajeros con asiento en alguna de las clases.
+  bool _hayCupo(Vuelo v) {
+    final n = widget.pasajeros.conAsiento;
+    return v.disponibles(Clase.economica) >= n || (v.tieneEjecutiva && v.disponibles(Clase.ejecutiva) >= n);
+  }
+
+  DateTime get _fechaMinima {
+    final ahora = DateTime.now();
+    final hoy = DateTime(ahora.year, ahora.month, ahora.day);
+    return _paso2 && _ida != null ? DateTime.parse(_ida!.vuelo.fecha) : hoy;
+  }
+
+  /// Fecha con vuelos y cupo más cercana a la elegida (a igual distancia, la posterior).
+  String? _fechaMasCercana(List<Vuelo> todos) {
+    final elegida = DateTime.parse(_fechaSel);
+    final minimo = _fechaMinima;
+    String? mejor;
+    var mejorPuntaje = 1 << 30;
+    for (final v in todos) {
+      if (!_hayCupo(v) || v.fecha == _fechaSel) continue;
+      final f = DateTime.parse(v.fecha);
+      if (f.isBefore(minimo)) continue;
+      final dif = f.difference(elegida).inDays;
+      final puntaje = dif.abs() * 2 + (dif > 0 ? 0 : 1);
+      if (puntaje < mejorPuntaje) {
+        mejorPuntaje = puntaje;
+        mejor = v.fecha;
+      }
+    }
+    return mejor;
+  }
+
+  Widget _sugerenciaFecha(List<Vuelo> todos, {required bool hayVuelosEseDia}) {
+    final cercana = _fechaMasCercana(todos);
+    final colors = Theme.of(context).colorScheme;
+
+    String texto;
+    if (cercana == null) {
+      texto = 'No hay vuelos disponibles para esta ruta en las próximas fechas.';
+    } else {
+      final dif = DateTime.parse(cercana).difference(DateTime.parse(_fechaSel)).inDays;
+      final cuando = dif.abs() == 1
+          ? (dif > 0 ? '1 día después' : '1 día antes')
+          : '${dif.abs()} días ${dif > 0 ? 'después' : 'antes'}';
+      texto = '${hayVuelosEseDia ? 'No hay cupo para ${widget.pasajeros.conAsiento} pasajeros' : 'No hay vuelos'} '
+          'el ${fechaLarga(_fechaSel)}.\n'
+          'La fecha disponible más cercana es el ${fechaLarga(cercana)} ($cuando).';
+    }
+
+    return Card(
+      margin: const EdgeInsets.fromLTRB(12, 6, 12, 6),
+      color: colors.secondaryContainer,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          children: [
+            Icon(Icons.event_busy, size: 32, color: colors.onSecondaryContainer),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(texto, style: TextStyle(color: colors.onSecondaryContainer)),
+                  if (cercana != null) ...[
+                    const SizedBox(height: 8),
+                    FilledButton.icon(
+                      onPressed: () => setState(() => _fechaSel = cercana),
+                      icon: const Icon(Icons.search, size: 18),
+                      label: Text('Ver vuelos del ${fechaCorta(cercana)}'),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _tiraDeFechas(List<Vuelo> vuelos) {
     final centro = DateTime.parse(_fechaSel);
     final colors = Theme.of(context).colorScheme;
@@ -255,7 +335,7 @@ class _ResultadosVuelosPageState extends State<ResultadosVuelosPage> {
           final dia = centro.add(Duration(days: i - 3));
           final iso = dia.toIso8601String().substring(0, 10);
           final delDia = vuelos
-              .where((v) => v.fecha == iso && v.disponibles(Clase.economica) + v.disponibles(Clase.ejecutiva) > 0)
+              .where((v) => v.fecha == iso && _hayCupo(v))
               .toList();
           final disponible = delDia.isNotEmpty && !dia.isBefore(minimo);
           final precio = disponible
@@ -482,17 +562,11 @@ class _ResultadosVuelosPageState extends State<ResultadosVuelosPage> {
                       _tiraDeFechas(todos),
                       const SizedBox(height: 8),
                       if (delDia.isEmpty)
-                        const Padding(
-                          padding: EdgeInsets.all(32),
-                          child: Center(
-                            child: Text(
-                              'No hay vuelos disponibles para esta fecha.',
-                              textAlign: TextAlign.center,
-                            ),
-                          ),
-                        )
-                      else
+                        _sugerenciaFecha(todos, hayVuelosEseDia: false)
+                      else ...[
+                        if (!delDia.any(_hayCupo)) _sugerenciaFecha(todos, hayVuelosEseDia: true),
                         ...delDia.map(_tarjetaVuelo),
+                      ],
                     ],
                   );
                 },

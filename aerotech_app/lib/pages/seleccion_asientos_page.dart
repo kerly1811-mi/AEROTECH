@@ -231,7 +231,7 @@ class _SeleccionAsientosPageState extends State<SeleccionAsientosPage> {
     );
   }
 
-  Widget _cabina(MapaAsientos mapa, int i) {
+  Widget _cabina(MapaAsientos mapa, int i, {bool compacto = false}) {
     final fe = mapa.vuelo.filasEjecutiva;
     final hijos = <Widget>[];
 
@@ -247,13 +247,14 @@ class _SeleccionAsientosPageState extends State<SeleccionAsientosPage> {
     if (fe > 0) seccion('Cabina Ejecutiva', _dorado, 1, fe);
     if (fe < mapa.filas) seccion('Cabina Económica', _azul, fe + 1, mapa.filas);
 
-    return Container(
-      padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border.symmetric(vertical: BorderSide(color: Colors.grey.shade300)),
+    // Perfil del avión: fuselaje con la nariz arriba, alas y cola alrededor de la cabina.
+    final ala = compacto ? 56.0 : 150.0;
+    return CustomPaint(
+      painter: _PerfilAvion(ala: ala, nariz: compacto ? 90 : 120),
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(ala, compacto ? 96 : 130, ala, compacto ? 80 : 100),
+        child: Column(mainAxisSize: MainAxisSize.min, children: hijos),
       ),
-      child: Column(mainAxisSize: MainAxisSize.min, children: hijos),
     );
   }
 
@@ -486,11 +487,6 @@ class _SeleccionAsientosPageState extends State<SeleccionAsientosPage> {
                 onPressed: _reload,
                 tooltip: 'Actualizar mapa',
               ),
-              if (mapas != null)
-                TextButton(
-                  onPressed: _completo ? () => _continuar(mapas) : null,
-                  child: const Text('Continuar'),
-                ),
               const BotonInicio(),
               const BotonCerrarSesion(),
             ],
@@ -508,7 +504,10 @@ class _SeleccionAsientosPageState extends State<SeleccionAsientosPage> {
               final mapa = SingleChildScrollView(
                 padding: const EdgeInsets.symmetric(vertical: 12),
                 child: Center(
-                  child: FittedBox(fit: BoxFit.scaleDown, child: _cabina(mapas![_tab], _tab)),
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: _cabina(mapas![_tab], _tab, compacto: ancho < 860),
+                  ),
                 ),
               );
 
@@ -532,6 +531,15 @@ class _SeleccionAsientosPageState extends State<SeleccionAsientosPage> {
                           children: [
                             _pestanas(),
                             _panel(mapas),
+                            const SizedBox(height: 20),
+                            SizedBox(
+                              width: double.infinity,
+                              height: 48,
+                              child: FilledButton(
+                                onPressed: _completo ? () => _continuar(mapas) : null,
+                                child: const Text('Continuar'),
+                              ),
+                            ),
                           ],
                         ),
                       ),
@@ -586,4 +594,67 @@ class _Esquina extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _Esquina old) => old.color != color;
+}
+
+/// Silueta del avión (vista desde arriba): fuselaje con nariz redondeada, alas y cola.
+class _PerfilAvion extends CustomPainter {
+  final double ala;
+  final double nariz;
+
+  _PerfilAvion({required this.ala, required this.nariz});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final w = size.width;
+    final h = size.height;
+    final x0 = ala - 24;
+    final x1 = w - ala + 24;
+    final cx = w / 2;
+    final fw = x1 - x0;
+    final colaInicio = h - 70;
+
+    final relleno = Paint()..color = const Color(0xFFE9EBF1);
+    final borde = Paint()
+      ..color = const Color(0xFFD0D4DD)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2;
+
+    // Alas y plano de cola (detrás del fuselaje)
+    Path poligono(List<Offset> pts) {
+      final p = Path()..moveTo(pts.first.dx, pts.first.dy);
+      for (final o in pts.skip(1)) {
+        p.lineTo(o.dx, o.dy);
+      }
+      return p..close();
+    }
+
+    final alas = [
+      [Offset(x0, h * 0.32), Offset(6, h * 0.5), Offset(6, h * 0.56), Offset(x0, h * 0.5)],
+      [Offset(x0, h - 105), Offset(ala * 0.45, h - 52), Offset(ala * 0.45, h - 36), Offset(x0, h - 66)],
+    ];
+    for (final pts in alas) {
+      final izq = poligono(pts);
+      final der = poligono([for (final o in pts) Offset(w - o.dx, o.dy)]);
+      for (final p in [izq, der]) {
+        canvas.drawPath(p, relleno);
+        canvas.drawPath(p, borde);
+      }
+    }
+
+    // Fuselaje
+    final cuerpo = Path()
+      ..moveTo(x0, colaInicio)
+      ..lineTo(x0, nariz)
+      ..cubicTo(x0, nariz * 0.3, cx - fw * 0.28, 0, cx, 0)
+      ..cubicTo(cx + fw * 0.28, 0, x1, nariz * 0.3, x1, nariz)
+      ..lineTo(x1, colaInicio)
+      ..cubicTo(x1, h - 8, cx + fw * 0.3, h, cx, h)
+      ..cubicTo(cx - fw * 0.3, h, x0, h - 8, x0, colaInicio)
+      ..close();
+    canvas.drawPath(cuerpo, Paint()..color = Colors.white);
+    canvas.drawPath(cuerpo, borde);
+  }
+
+  @override
+  bool shouldRepaint(covariant _PerfilAvion old) => old.ala != ala || old.nariz != nariz;
 }
