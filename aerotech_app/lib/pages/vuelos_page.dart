@@ -376,6 +376,12 @@ class _VuelosPageState extends State<VuelosPage> {
         final destinos = snapshot.data;
         if (destinos == null || destinos.isEmpty) return const SizedBox.shrink();
 
+        // Las tarjetas se reparten todo el ancho; si hay más, se desplaza hacia el lado.
+        final disponible = MediaQuery.of(context).size.width - 24;
+        final columnas = (disponible / 210).floor().clamp(2, 8);
+        final visibles = destinos.length < columnas ? destinos.length : columnas;
+        final anchoTarjeta = ((disponible - 12 * (visibles - 1)) / visibles).clamp(170.0, 320.0);
+
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -394,7 +400,7 @@ class _VuelosPageState extends State<VuelosPage> {
                     borderRadius: BorderRadius.circular(16),
                     onTap: () => _elegirDestino(d, aeropuertos),
                     child: Container(
-                      width: 190,
+                      width: anchoTarjeta,
                       padding: const EdgeInsets.all(14),
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(16),
@@ -483,33 +489,9 @@ class _VuelosPageState extends State<VuelosPage> {
     );
   }
 
-  Widget _vuelosDeHoy(List<Aeropuerto> aeropuertos) {
-    return FutureBuilder<List<Vuelo>>(
-      future: futureHoy,
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Padding(padding: EdgeInsets.all(24), child: Center(child: CircularProgressIndicator()));
-        }
-        if (snapshot.hasError) return const SizedBox.shrink();
-
-        final vuelos = _pendientesHoy(snapshot.data ?? []);
-
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _titulo('Vuelos disponibles hoy', subtitulo: fechaLarga(_iso(DateTime.now()))),
-            if (vuelos.isEmpty)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
-                child: Text(
-                  'Ya no quedan vuelos disponibles para hoy. Usa el buscador para ver otros días.',
-                  style: TextStyle(color: Colors.grey[700]),
-                ),
-              )
-            else
-              for (final v in vuelos)
-                Card(
-                  margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+  Widget _tarjetaVueloHoy(Vuelo v, List<Aeropuerto> aeropuertos) {
+    return Card(
+                  margin: EdgeInsets.zero,
                   child: InkWell(
                     borderRadius: BorderRadius.circular(12),
                     onTap: () => _verVueloHoy(v, aeropuertos),
@@ -559,7 +541,51 @@ class _VuelosPageState extends State<VuelosPage> {
                       ),
                     ),
                   ),
+                );
+  }
+
+  Widget _vuelosDeHoy(List<Aeropuerto> aeropuertos) {
+    return FutureBuilder<List<Vuelo>>(
+      future: futureHoy,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Padding(padding: EdgeInsets.all(24), child: Center(child: CircularProgressIndicator()));
+        }
+        if (snapshot.hasError) return const SizedBox.shrink();
+
+        final vuelos = _pendientesHoy(snapshot.data ?? []);
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _titulo('Vuelos disponibles hoy', subtitulo: fechaLarga(_iso(DateTime.now()))),
+            if (vuelos.isEmpty)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+                child: Text(
+                  'Ya no quedan vuelos disponibles para hoy. Usa el buscador para ver otros días.',
+                  style: TextStyle(color: Colors.grey[700]),
                 ),
+              )
+            else
+              LayoutBuilder(
+                builder: (context, c) {
+                  final ancho = c.maxWidth - 24;
+                  final columnas = ancho >= 1300 ? 3 : (ancho >= 800 ? 2 : 1);
+                  final anchoItem = (ancho - 12 * (columnas - 1)) / columnas;
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    child: Wrap(
+                      spacing: 12,
+                      runSpacing: 8,
+                      children: [
+                        for (final v in vuelos)
+                          SizedBox(width: anchoItem, child: _tarjetaVueloHoy(v, aeropuertos)),
+                      ],
+                    ),
+                  );
+                },
+              ),
             const SizedBox(height: 24),
           ],
         );
@@ -588,38 +614,44 @@ class _VuelosPageState extends State<VuelosPage> {
           }
           final aeropuertos = snapshot.data ?? [];
 
-          return Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 900),
-              child: ListView(
-                children: [
-                  if (widget.inicio)
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
-                      child: Align(
-                        alignment: Alignment.centerLeft,
-                        child: FilledButton.tonalIcon(
-                          style: FilledButton.styleFrom(
-                            minimumSize: const Size(0, 52),
-                            textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+          return ListView(
+            children: [
+              // Buscador: más angosto y centrado
+              Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 900),
+                  child: Column(
+                    children: [
+                      if (widget.inicio)
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+                          child: Align(
+                            alignment: Alignment.centerLeft,
+                            child: FilledButton.tonalIcon(
+                              style: FilledButton.styleFrom(
+                                minimumSize: const Size(0, 52),
+                                textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                              ),
+                              onPressed: () => Navigator.push(
+                                context,
+                                MaterialPageRoute(builder: (context) => const ReservasPage()),
+                              ),
+                              icon: const Icon(Icons.event_note),
+                              label: const Text('Mis reservas'),
+                            ),
                           ),
-                          onPressed: () => Navigator.push(
-                            context,
-                            MaterialPageRoute(builder: (context) => const ReservasPage()),
-                          ),
-                          icon: const Icon(Icons.event_note),
-                          label: const Text('Mis reservas'),
                         ),
-                      ),
-                    ),
-                  _buildFiltros(aeropuertos),
-                  if (widget.inicio) ...[
-                    _promociones(aeropuertos),
-                    _vuelosDeHoy(aeropuertos),
-                  ],
-                ],
+                      _buildFiltros(aeropuertos),
+                    ],
+                  ),
+                ),
               ),
-            ),
+              // Destinos y vuelos de hoy: ocupan todo el ancho de la pantalla
+              if (widget.inicio) ...[
+                _promociones(aeropuertos),
+                _vuelosDeHoy(aeropuertos),
+              ],
+            ],
           );
         },
       ),
