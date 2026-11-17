@@ -96,6 +96,21 @@ class VueloService:
         """)
         return {"total": len(aeropuertos), "aeropuertos": aeropuertos}, 200
 
+    def destinos(self):
+        """Destinos con vuelos próximos y con cupo, con el precio más bajo (para la portada)."""
+        destinos = self.db.fetch_all("""
+            SELECT a.id, a.codigo, a.ciudad, p.nombre AS pais,
+                   MIN(v.precio) AS desde, COUNT(*)::int AS vuelos
+            FROM vuelos v
+            JOIN aeropuertos a ON a.id = v.destino_id
+            JOIN paises p ON p.id = a.pais_id
+            WHERE v.fecha >= (NOW() AT TIME ZONE 'America/Guayaquil')::date
+              AND v.asientos_disponibles > 0
+            GROUP BY a.id, a.codigo, a.ciudad, p.nombre
+            ORDER BY desde, a.ciudad
+        """)
+        return {"total": len(destinos), "destinos": destinos}, 200
+
     def listar(self, origen_id=None, destino_id=None, fecha=None):
         sql = self.DETALLE + " WHERE 1=1"
         params = []

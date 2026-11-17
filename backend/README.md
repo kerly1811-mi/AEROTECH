@@ -90,6 +90,7 @@ APE4-PRACTICA/
 | Método | Endpoint | Permiso |
 |---|---|---|
 | GET | `/api/aeropuertos` | `vuelos.ver` |
+| GET | `/api/destinos` | `vuelos.ver` — destinos con vuelos próximos y su precio más bajo (portada) |
 | GET | `/api/vuelos?origen_id=&destino_id=&fecha=` | `vuelos.ver` |
 | GET | `/api/vuelos/{id}` | `vuelos.ver` |
 | POST | `/api/vuelos` | `vuelos.crear` |
