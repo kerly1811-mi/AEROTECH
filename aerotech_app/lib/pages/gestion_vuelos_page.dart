@@ -4,8 +4,11 @@ import 'package:aerotech_app/config.dart';
 import 'package:aerotech_app/models/vuelo.dart';
 import 'package:aerotech_app/pages/login_page.dart';
 import 'package:aerotech_app/pages/vuelo_form_page.dart';
+import 'package:aerotech_app/pages/vuelos_anteriores_page.dart';
 import 'package:aerotech_app/services/api_service.dart';
 import 'package:aerotech_app/services/vuelo_service.dart';
+import 'package:aerotech_app/utils/busqueda_vuelos.dart';
+import 'package:aerotech_app/widgets/buscador_vuelos.dart';
 import 'package:aerotech_app/widgets/error_view.dart';
 import 'package:flutter/material.dart';
 
@@ -20,12 +23,22 @@ class _GestionVuelosPageState extends State<GestionVuelosPage> {
   final VueloService vueloService = VueloService();
 
   late Future<List<Vuelo>> futureVuelos;
+  final _busqueda = TextEditingController();
+  String _consulta = '';
 
   @override
   void initState() {
     super.initState();
     _reload();
   }
+
+  @override
+  void dispose() {
+    _busqueda.dispose();
+    super.dispose();
+  }
+
+  String get _hoy => DateTime.now().toIso8601String().substring(0, 10);
 
   void _reload() {
     setState(() {
@@ -128,45 +141,117 @@ class _GestionVuelosPageState extends State<GestionVuelosPage> {
             return ErrorView(error: snapshot.error, onRetry: _reload);
           }
 
-          final vuelos = snapshot.data ?? [];
-          if (vuelos.isEmpty) {
+          final todos = snapshot.data ?? [];
+          if (todos.isEmpty) {
             return const Center(child: Text('No hay vuelos registrados.'));
           }
 
-          return ListView.builder(
-            itemCount: vuelos.length,
-            itemBuilder: (context, index) {
-              final vuelo = vuelos[index];
-              return Card(
-                key: ValueKey(vuelo.id),
-                margin: const EdgeInsets.all(8.0),
-                child: ListTile(
-                  leading: const CircleAvatar(child: Icon(Icons.flight)),
-                  title: Text('${vuelo.origen} → ${vuelo.destino}'),
-                  subtitle: Text(
-                    '${vuelo.fecha}   ${vuelo.horaSalida} - ${vuelo.horaLlegada}\n'
-                    'Precio: \$${vuelo.precio.toStringAsFixed(2)} · '
-                    'Libres: ${vuelo.asientosDisponibles} de ${vuelo.capacidad} (${vuelo.filas} filas)',
+          // Los vuelos de días anteriores van en su propia página.
+          final proximos = todos
+              .where((v) => v.fecha.compareTo(_hoy) >= 0)
+              .toList();
+          final anteriores = todos
+              .where((v) => v.fecha.compareTo(_hoy) < 0)
+              .toList();
+          final vuelos = proximos
+              .where((v) => coincideBusqueda(v, _consulta))
+              .toList();
+
+          return Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 900),
+              child: Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
+                    child: BuscadorVuelos(
+                      controller: _busqueda,
+                      onChanged: (v) => setState(() => _consulta = v),
+                    ),
                   ),
-                  isThreeLine: true,
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      if (usuario.puede('vuelos.editar'))
-                        IconButton(
-                          icon: const Icon(Icons.edit),
-                          onPressed: () => _abrirFormulario(vuelo),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 4, 12, 0),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            '${vuelos.length} de ${proximos.length} vuelos desde hoy',
+                            style: TextStyle(
+                              color: Colors.grey[700],
+                              fontSize: 12,
+                            ),
+                          ),
                         ),
-                      if (usuario.puede('vuelos.eliminar'))
-                        IconButton(
-                          icon: const Icon(Icons.delete),
-                          onPressed: () => _confirmAndDelete(vuelo),
+                        TextButton.icon(
+                          onPressed: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) =>
+                                  VuelosAnterioresPage(vuelos: anteriores),
+                            ),
+                          ),
+                          icon: const Icon(Icons.history),
+                          label: Text(
+                            'Vuelos anteriores (${anteriores.length})',
+                          ),
                         ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
-              );
-            },
+                  Expanded(
+                    child: vuelos.isEmpty
+                        ? Center(
+                            child: Text(
+                              proximos.isEmpty
+                                  ? 'No hay vuelos próximos. Revisa los vuelos anteriores.'
+                                  : 'Ningún vuelo coincide con la búsqueda.',
+                            ),
+                          )
+                        : ListView.builder(
+                            itemCount: vuelos.length,
+                            itemBuilder: (context, index) {
+                              final vuelo = vuelos[index];
+                              return Card(
+                                key: ValueKey(vuelo.id),
+                                margin: const EdgeInsets.all(8.0),
+                                child: ListTile(
+                                  leading: const CircleAvatar(
+                                    child: Icon(Icons.flight),
+                                  ),
+                                  title: Text(
+                                    '${vuelo.origen} → ${vuelo.destino}',
+                                  ),
+                                  subtitle: Text(
+                                    '${vuelo.fecha}   ${vuelo.horaSalida} - ${vuelo.horaLlegada}\n'
+                                    'Precio: \$${vuelo.precio.toStringAsFixed(2)} · '
+                                    'Libres: ${vuelo.asientosDisponibles} de ${vuelo.capacidad} (${vuelo.filas} filas)',
+                                  ),
+                                  isThreeLine: true,
+                                  trailing: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      if (usuario.puede('vuelos.editar'))
+                                        IconButton(
+                                          icon: const Icon(Icons.edit),
+                                          onPressed: () =>
+                                              _abrirFormulario(vuelo),
+                                        ),
+                                      if (usuario.puede('vuelos.eliminar'))
+                                        IconButton(
+                                          icon: const Icon(Icons.delete),
+                                          onPressed: () =>
+                                              _confirmAndDelete(vuelo),
+                                        ),
+                                    ],
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                  ),
+                ],
+              ),
+            ),
           );
         },
       ),

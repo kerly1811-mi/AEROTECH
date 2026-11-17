@@ -8,6 +8,8 @@ class Vuelo {
   final int destinoId;
   final String origenCodigo;
   final String destinoCodigo;
+  final String origenPais;
+  final String destinoPais;
   final String fecha;
   final String horaSalida;
   final String horaLlegada;
@@ -31,6 +33,8 @@ class Vuelo {
     this.destinoId = 0,
     this.origenCodigo = '',
     this.destinoCodigo = '',
+    this.origenPais = '',
+    this.destinoPais = '',
     required this.fecha,
     required this.horaSalida,
     required this.horaLlegada,
@@ -98,6 +102,8 @@ class Vuelo {
       destinoId: (json['destino_id'] as num?)?.toInt() ?? 0,
       origenCodigo: json['origen_codigo'] ?? '',
       destinoCodigo: json['destino_codigo'] ?? '',
+      origenPais: json['origen_pais'] ?? '',
+      destinoPais: json['destino_pais'] ?? '',
       fecha: json['fecha'] ?? '',
       horaSalida: json['hora_salida'].toString().substring(0, 5),
       horaLlegada: json['hora_llegada'].toString().substring(0, 5),
