@@ -10,6 +10,8 @@ class Vuelo {
   final String destinoCodigo;
   final String origenPais;
   final String destinoPais;
+  final int? avionId;
+  final String avion;
   final String fecha;
   final String horaSalida;
   final String horaLlegada;
@@ -35,6 +37,8 @@ class Vuelo {
     this.destinoCodigo = '',
     this.origenPais = '',
     this.destinoPais = '',
+    this.avionId,
+    this.avion = '',
     required this.fecha,
     required this.horaSalida,
     required this.horaLlegada,
@@ -54,6 +58,9 @@ class Vuelo {
   int get capacidad => filas * 6;
 
   bool get tieneEjecutiva => filasEjecutiva > 0;
+
+  /// Origen y destino en el mismo país.
+  bool get esNacional => origenPais.isNotEmpty && origenPais == destinoPais;
 
   bool get tieneCoordenadas =>
       origenLat != null && origenLon != null && destinoLat != null && destinoLon != null;
@@ -104,6 +111,8 @@ class Vuelo {
       destinoCodigo: json['destino_codigo'] ?? '',
       origenPais: json['origen_pais'] ?? '',
       destinoPais: json['destino_pais'] ?? '',
+      avionId: (json['avion_id'] as num?)?.toInt(),
+      avion: json['avion'] ?? '',
       fecha: json['fecha'] ?? '',
       horaSalida: json['hora_salida'].toString().substring(0, 5),
       horaLlegada: json['hora_llegada'].toString().substring(0, 5),
@@ -129,8 +138,7 @@ class Vuelo {
       'hora_salida': horaSalida,
       'hora_llegada': horaLlegada,
       'precio': precio,
-      'filas': filas,
-      'filas_ejecutiva': filasEjecutiva,
+      'avion_id': avionId,
       'precio_ejecutiva': precioEjecutiva,
       'version': version,
     };

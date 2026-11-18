@@ -10,6 +10,7 @@ import 'package:aerotech_app/services/vuelo_service.dart';
 import 'package:aerotech_app/utils/busqueda_vuelos.dart';
 import 'package:aerotech_app/widgets/buscador_vuelos.dart';
 import 'package:aerotech_app/widgets/error_view.dart';
+import 'package:aerotech_app/widgets/filtro_alcance.dart';
 import 'package:flutter/material.dart';
 
 class GestionVuelosPage extends StatefulWidget {
@@ -25,6 +26,7 @@ class _GestionVuelosPageState extends State<GestionVuelosPage> {
   late Future<List<Vuelo>> futureVuelos;
   final _busqueda = TextEditingController();
   String _consulta = '';
+  Alcance _alcance = Alcance.todos;
 
   @override
   void initState() {
@@ -154,7 +156,7 @@ class _GestionVuelosPageState extends State<GestionVuelosPage> {
               .where((v) => v.fecha.compareTo(_hoy) < 0)
               .toList();
           final vuelos = proximos
-              .where((v) => coincideBusqueda(v, _consulta))
+              .where((v) => coincideAlcance(v, _alcance) && coincideBusqueda(v, _consulta))
               .toList();
 
           return Center(
@@ -167,6 +169,14 @@ class _GestionVuelosPageState extends State<GestionVuelosPage> {
                     child: BuscadorVuelos(
                       controller: _busqueda,
                       onChanged: (v) => setState(() => _consulta = v),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+                    child: FiltroAlcance(
+                      valor: _alcance,
+                      vuelos: proximos,
+                      onChanged: (a) => setState(() => _alcance = a),
                     ),
                   ),
                   Padding(
@@ -223,6 +233,8 @@ class _GestionVuelosPageState extends State<GestionVuelosPage> {
                                   ),
                                   subtitle: Text(
                                     '${vuelo.fecha}   ${vuelo.horaSalida} - ${vuelo.horaLlegada}\n'
+                                    '${vuelo.esNacional ? 'Nacional' : 'Internacional'}'
+                                    '${vuelo.avion.isEmpty ? '' : ' · ${vuelo.avion}'}\n'
                                     'Precio: \$${vuelo.precio.toStringAsFixed(2)} · '
                                     'Libres: ${vuelo.asientosDisponibles} de ${vuelo.capacidad} (${vuelo.filas} filas)',
                                   ),

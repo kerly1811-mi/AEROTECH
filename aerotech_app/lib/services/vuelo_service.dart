@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:aerotech_app/models/aeropuerto.dart';
+import 'package:aerotech_app/models/avion.dart';
 import 'package:aerotech_app/models/asiento.dart';
 import 'package:aerotech_app/models/destino.dart';
 import 'package:aerotech_app/models/vuelo.dart';
@@ -20,6 +21,17 @@ class VueloService extends ApiService {
         }
 
         throwError(response, 'Error al cargar los aeropuertos.');
+      });
+
+  Future<List<Avion>> getAviones() => guard(() async {
+        final response = await http.get(Uri.parse('$baseUrl/aviones'), headers: headers);
+
+        if (response.statusCode == 200) {
+          final List datos = decode(response)['aviones'];
+          return datos.map((item) => Avion.fromJson(item)).toList();
+        }
+
+        throwError(response, 'Error al cargar los aviones.');
       });
 
   Future<List<DestinoPromo>> getDestinos() => guard(() async {

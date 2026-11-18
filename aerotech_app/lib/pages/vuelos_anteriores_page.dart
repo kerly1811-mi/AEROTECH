@@ -3,6 +3,7 @@ import 'package:aerotech_app/utils/busqueda_vuelos.dart';
 import 'package:aerotech_app/widgets/boton_cerrar_sesion.dart';
 import 'package:aerotech_app/widgets/boton_inicio.dart';
 import 'package:aerotech_app/widgets/buscador_vuelos.dart';
+import 'package:aerotech_app/widgets/filtro_alcance.dart';
 import 'package:flutter/material.dart';
 
 /// Vuelos de días anteriores (solo consulta), dentro de la gestión de vuelos.
@@ -18,6 +19,7 @@ class VuelosAnterioresPage extends StatefulWidget {
 class _VuelosAnterioresPageState extends State<VuelosAnterioresPage> {
   final _busqueda = TextEditingController();
   String _consulta = '';
+  Alcance _alcance = Alcance.todos;
 
   @override
   void dispose() {
@@ -30,7 +32,8 @@ class _VuelosAnterioresPageState extends State<VuelosAnterioresPage> {
     // Los más recientes primero.
     final ordenados = [...widget.vuelos]
       ..sort((a, b) => '${b.fecha} ${b.horaSalida}'.compareTo('${a.fecha} ${a.horaSalida}'));
-    final vuelos = ordenados.where((v) => coincideBusqueda(v, _consulta)).toList();
+    final vuelos =
+        ordenados.where((v) => coincideAlcance(v, _alcance) && coincideBusqueda(v, _consulta)).toList();
 
     return Scaffold(
       appBar: AppBar(
@@ -47,6 +50,14 @@ class _VuelosAnterioresPageState extends State<VuelosAnterioresPage> {
                 child: BuscadorVuelos(
                   controller: _busqueda,
                   onChanged: (v) => setState(() => _consulta = v),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+                child: FiltroAlcance(
+                  valor: _alcance,
+                  vuelos: widget.vuelos,
+                  onChanged: (a) => setState(() => _alcance = a),
                 ),
               ),
               Padding(
