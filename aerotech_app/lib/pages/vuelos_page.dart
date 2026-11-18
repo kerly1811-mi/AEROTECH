@@ -10,6 +10,7 @@ import 'package:aerotech_app/widgets/aeropuerto_field.dart';
 import 'package:aerotech_app/widgets/boton_inicio.dart';
 import 'package:aerotech_app/widgets/boton_cerrar_sesion.dart';
 import 'package:aerotech_app/widgets/error_view.dart';
+import 'package:aerotech_app/widgets/logo_aerotech.dart';
 import 'package:aerotech_app/widgets/selector_fechas.dart';
 import 'package:flutter/material.dart';
 
@@ -597,7 +598,7 @@ class _VuelosPageState extends State<VuelosPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.inicio ? 'AeroTech' : 'Buscar vuelos'),
+        title: widget.inicio ? const LogoAeroTech(tamano: 34) : const Text('Buscar vuelos'),
         actions: [
           if (!widget.inicio) const BotonInicio(),
           const BotonCerrarSesion(),

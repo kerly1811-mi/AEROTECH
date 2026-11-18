@@ -4,6 +4,7 @@ import 'package:aerotech_app/pages/reservas_page.dart';
 import 'package:aerotech_app/pages/usuarios_page.dart';
 import 'package:aerotech_app/pages/vuelos_page.dart';
 import 'package:aerotech_app/widgets/boton_cerrar_sesion.dart';
+import 'package:aerotech_app/widgets/logo_aerotech.dart';
 import 'package:flutter/material.dart';
 
 class _Opcion {
@@ -53,7 +54,7 @@ class _HomePageState extends State<HomePage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('AeroTech'),
+        title: const LogoAeroTech(tamano: 34),
         actions: const [BotonCerrarSesion()],
       ),
       body: Center(

@@ -18,6 +18,14 @@ class AuthService extends ApiService {
           final body = decode(response);
           Config.token = body['token'];
           Config.usuario = Usuario.fromJson(body['usuario']);
+          // Cierre automático al vencer el token (se usa la duración, no la hora, para no depender del reloj).
+          final segundos = (body['expira_en_segundos'] as num?)?.toInt();
+          if (segundos != null) {
+            Config.programarExpiracion(Duration(seconds: segundos));
+          } else if (body['expiracion'] != null) {
+            final vence = DateTime.tryParse(body['expiracion'].toString());
+            if (vence != null) Config.programarExpiracion(vence.difference(DateTime.now()));
+          }
           return Config.usuario!;
         }
 

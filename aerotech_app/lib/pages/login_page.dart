@@ -2,6 +2,8 @@ import 'package:aerotech_app/pages/home_page.dart';
 import 'package:aerotech_app/pages/registro_page.dart';
 import 'package:aerotech_app/services/api_service.dart';
 import 'package:aerotech_app/services/auth_service.dart';
+import 'package:aerotech_app/widgets/logo_aerotech.dart';
+import 'package:aerotech_app/widgets/ruta_mundial.dart';
 import 'package:flutter/material.dart';
 
 class LoginPage extends StatefulWidget {
@@ -85,93 +87,184 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final color = Theme.of(context).colorScheme.primary;
+  Widget _formulario() {
+    final colors = Theme.of(context).colorScheme;
 
-    return Scaffold(
-      body: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 400),
-            child: Form(
-              key: _formKey,
-              child: Column(
-                children: [
-                  Icon(Icons.flight_takeoff, size: 72, color: color),
-                  const SizedBox(height: 8),
-                  Text(
-                    'AeroTech',
-                    style: TextStyle(
-                      fontSize: 32,
-                      fontWeight: FontWeight.bold,
-                      color: color,
-                    ),
-                  ),
-                  const Text('Reservas de vuelos'),
-                  const SizedBox(height: 32),
-                  TextFormField(
-                    controller: correoController,
-                    keyboardType: TextInputType.emailAddress,
-                    decoration: const InputDecoration(
-                      labelText: 'Correo',
-                      prefixIcon: Icon(Icons.person),
-                      border: OutlineInputBorder(),
-                    ),
-                    validator: _validateCorreo,
-                  ),
-                  const SizedBox(height: 15),
-                  TextFormField(
-                    controller: passwordController,
-                    obscureText: _ocultar,
-                    decoration: InputDecoration(
-                      labelText: 'Contraseña',
-                      prefixIcon: const Icon(Icons.lock),
-                      border: const OutlineInputBorder(),
-                      suffixIcon: IconButton(
-                        icon: Icon(_ocultar ? Icons.visibility : Icons.visibility_off),
-                        onPressed: () => setState(() => _ocultar = !_ocultar),
-                      ),
-                    ),
-                    validator: _validatePassword,
-                    onFieldSubmitted: (_) => _login(),
-                  ),
-                  const SizedBox(height: 25),
-                  SizedBox(
-                    width: double.infinity,
-                    height: 48,
-                    child: ElevatedButton(
-                      onPressed: _isLoading ? null : _login,
-                      child: _isLoading
-                          ? const SizedBox(
-                              height: 20,
-                              width: 20,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Text('Iniciar sesión'),
-                    ),
-                  ),
-                  if (_isLoading)
-                    const Padding(
-                      padding: EdgeInsets.only(top: 12),
-                      child: Text(
-                        'La primera conexión puede tardar hasta un minuto.',
-                        style: TextStyle(fontSize: 12),
-                      ),
-                    ),
-                  const SizedBox(height: 8),
-                  TextButton(
-                    onPressed: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (context) => const RegistroPage()),
-                    ),
-                    child: const Text('¿No tienes cuenta? Regístrate'),
-                  ),
-                ],
+    return Card(
+      elevation: 8,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(28, 28, 28, 20),
+        child: Form(
+          key: _formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'Bienvenido',
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
               ),
+              const SizedBox(height: 4),
+              Text('Inicia sesión para reservar tu vuelo', style: TextStyle(color: Colors.grey[700])),
+              const SizedBox(height: 24),
+              TextFormField(
+                controller: correoController,
+                keyboardType: TextInputType.emailAddress,
+                decoration: InputDecoration(
+                  labelText: 'Correo',
+                  prefixIcon: const Icon(Icons.alternate_email),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+                ),
+                validator: _validateCorreo,
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: passwordController,
+                obscureText: _ocultar,
+                decoration: InputDecoration(
+                  labelText: 'Contraseña',
+                  prefixIcon: const Icon(Icons.lock_outline),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+                  suffixIcon: IconButton(
+                    icon: Icon(_ocultar ? Icons.visibility : Icons.visibility_off),
+                    onPressed: () => setState(() => _ocultar = !_ocultar),
+                  ),
+                ),
+                validator: _validatePassword,
+                onFieldSubmitted: (_) => _login(),
+              ),
+              const SizedBox(height: 24),
+              SizedBox(
+                height: 52,
+                child: FilledButton(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: const Color(0xFF0B2A8A),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  ),
+                  onPressed: _isLoading ? null : _login,
+                  child: _isLoading
+                      ? const SizedBox(
+                          height: 22,
+                          width: 22,
+                          child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white),
+                        )
+                      : const Text('Iniciar sesión', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
+                ),
+              ),
+              if (_isLoading)
+                Padding(
+                  padding: const EdgeInsets.only(top: 12),
+                  child: Text(
+                    'La primera conexión puede tardar hasta un minuto.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 12, color: Colors.grey[700]),
+                  ),
+                ),
+              const SizedBox(height: 8),
+              TextButton(
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const RegistroPage()),
+                ),
+                child: Text('¿No tienes cuenta? Regístrate', style: TextStyle(color: colors.primary)),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _portada({required bool ancho}) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: ancho ? CrossAxisAlignment.start : CrossAxisAlignment.center,
+      children: [
+        LogoAeroTech(tamano: ancho ? 72 : 56, claro: true),
+        const SizedBox(height: 14),
+        Text(
+          'Tu próximo vuelo,\na un toque.',
+          textAlign: ancho ? TextAlign.start : TextAlign.center,
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: ancho ? 40 : 22,
+            fontWeight: FontWeight.w300,
+            height: 1.15,
+          ),
+        ),
+        if (ancho) ...[
+          const SizedBox(height: 10),
+          const Text(
+            'Compara destinos, elige tu asiento y viaja con un solo comprobante.',
+            style: TextStyle(color: Colors.white70, fontSize: 16),
+          ),
+          const SizedBox(height: 28),
+          const SizedBox(
+            width: 520,
+            child: RutaMundial(
+              origenLat: -0.1292,
+              origenLon: -78.3575,
+              destinoLat: 40.4983,
+              destinoLon: -3.5676,
+              origenCodigo: 'UIO',
+              destinoCodigo: 'MAD',
             ),
           ),
+        ],
+      ],
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xFF061A47), Color(0xFF0B3B9E), Color(0xFF1565C0)],
+          ),
+        ),
+        child: LayoutBuilder(
+          builder: (context, c) {
+            final ancho = c.maxWidth >= 900;
+
+            if (ancho) {
+              return Center(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(40),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Flexible(child: _portada(ancho: true)),
+                      const SizedBox(width: 64),
+                      SizedBox(width: 420, child: _formulario()),
+                    ],
+                  ),
+                ),
+              );
+            }
+
+            return Center(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(20),
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 440),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _portada(ancho: false),
+                      const SizedBox(height: 24),
+                      _formulario(),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
         ),
       ),
     );
