@@ -108,6 +108,17 @@ def mapa_asientos(vuelo_id):
     return asiento_service.mapa(vuelo_id)
 
 
+# Información de portada: pública (sin token) y de solo lectura.
+@app.route("/api/publico/destinos", methods=["GET"])
+def publico_destinos():
+    return vuelo_service.destinos()
+
+
+@app.route("/api/publico/vuelos-hoy", methods=["GET"])
+def publico_vuelos_hoy():
+    return vuelo_service.hoy()
+
+
 @app.route("/api/aviones", methods=["GET"])
 @autenticacion_service.token_requerido("vuelos.crear")
 def listar_aviones():

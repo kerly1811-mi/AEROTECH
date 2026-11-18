@@ -92,6 +92,8 @@ APE4-PRACTICA/
 |---|---|---|
 | GET | `/api/aeropuertos` | `vuelos.ver` |
 | GET | `/api/aviones` | `vuelos.crear` — catálogo de aviones (modelo, filas, filas de Ejecutiva); el vuelo se crea con `avion_id` y de ahí salen sus asientos |
+| GET | `/api/publico/destinos` | **Pública** (sin token) — destinos con vuelos próximos y su precio más bajo (landing page) |
+| GET | `/api/publico/vuelos-hoy` | **Pública** (sin token) — hasta 12 vuelos de hoy que aún no han salido (landing page) |
 | GET | `/api/destinos` | `vuelos.ver` — destinos con vuelos próximos y su precio más bajo (portada) |
 | GET | `/api/vuelos?origen_id=&destino_id=&fecha=` | `vuelos.ver` |
 | GET | `/api/vuelos/{id}` | `vuelos.ver` |

@@ -116,6 +116,21 @@ class VueloService:
         """)
         return {"total": len(destinos), "destinos": destinos}, 200
 
+    def hoy(self):
+        """Vuelos de hoy que aún no han salido (hora de Ecuador), para la portada pública."""
+        vuelos = self.db.fetch_all("""
+            SELECT id, origen, destino, origen_id, destino_id, origen_codigo, destino_codigo,
+                   origen_pais, destino_pais, fecha, hora_salida, hora_llegada, precio, filas,
+                   asientos_disponibles
+            FROM vuelos_detalle
+            WHERE fecha = (NOW() AT TIME ZONE 'America/Guayaquil')::date
+              AND hora_salida > (NOW() AT TIME ZONE 'America/Guayaquil')::time
+              AND asientos_disponibles > 0
+            ORDER BY hora_salida
+            LIMIT 12
+        """)
+        return {"total": len(vuelos), "vuelos": vuelos}, 200
+
     def listar(self, origen_id=None, destino_id=None, fecha=None):
         sql = self.DETALLE + " WHERE 1=1"
         params = []
