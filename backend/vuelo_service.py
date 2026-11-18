@@ -2,8 +2,8 @@ from datetime import datetime
 
 
 class VueloService:
-    CAMPOS = ["origen_id", "destino_id", "fecha", "hora_salida", "hora_llegada", "precio", "filas",
-              "filas_ejecutiva", "precio_ejecutiva"]
+    CAMPOS = ["origen_id", "destino_id", "fecha", "hora_salida", "hora_llegada", "precio",
+              "avion_id", "precio_ejecutiva"]
     DETALLE = "SELECT * FROM vuelos_detalle"
     ASIENTOS_POR_FILA = 6
     IDX_FILAS = 6  # posición de "filas" en la tupla que devuelve valores()
@@ -37,24 +37,12 @@ class VueloService:
         except (TypeError, ValueError):
             errores.append({"campo": "precio", "error": "Debe ser numérico"})
         try:
-            filas = int(data["filas"])
-            if filas < 1 or filas > self.MAXIMO_FILAS:
-                errores.append({"campo": "filas", "error": f"Debe estar entre 1 y {self.MAXIMO_FILAS}"})
-        except (TypeError, ValueError):
-            errores.append({"campo": "filas", "error": "Debe ser entero"})
-        try:
             if float(data["precio_ejecutiva"]) <= 0:
                 errores.append({"campo": "precio_ejecutiva", "error": "Debe ser mayor a 0"})
         except (TypeError, ValueError):
             errores.append({"campo": "precio_ejecutiva", "error": "Debe ser numérico"})
-        try:
-            filas_ejecutiva = int(data["filas_ejecutiva"])
-            if filas_ejecutiva < 0:
-                errores.append({"campo": "filas_ejecutiva", "error": "No puede ser negativo"})
-            elif not any(e["campo"] == "filas" for e in errores) and filas_ejecutiva > int(data["filas"]):
-                errores.append({"campo": "filas_ejecutiva", "error": "No puede superar el total de filas"})
-        except (TypeError, ValueError):
-            errores.append({"campo": "filas_ejecutiva", "error": "Debe ser entero"})
+        if self.avion(data.get("avion_id")) is None:
+            errores.append({"campo": "avion_id", "error": "Seleccione un avión de la lista"})
         ids = {}
         for campo in ["origen_id", "destino_id"]:
             try:
@@ -75,7 +63,23 @@ class VueloService:
                         errores.append({"campo": campo, "error": "El aeropuerto no existe"})
         return errores
 
+    def avion(self, avion_id):
+        try:
+            avion_id = int(avion_id)
+        except (TypeError, ValueError):
+            return None
+        return self.db.fetch_one("SELECT * FROM aviones WHERE id = %s", (avion_id,))
+
+    def aviones(self):
+        aviones = self.db.fetch_all("""
+            SELECT id, modelo, filas, filas_ejecutiva, filas * 6 AS asientos
+            FROM aviones ORDER BY filas, modelo
+        """)
+        return {"total": len(aviones), "aviones": aviones}, 200
+
     def valores(self, data):
+        """Las filas y las filas de Ejecutiva salen del avión elegido, no del cuerpo de la petición."""
+        avion = self.avion(data["avion_id"])
         return (
             int(data["origen_id"]),
             int(data["destino_id"]),
@@ -83,9 +87,10 @@ class VueloService:
             str(data["hora_salida"])[:5],
             str(data["hora_llegada"])[:5],
             data["precio"],
-            int(data["filas"]),
-            int(data["filas_ejecutiva"]),
-            data["precio_ejecutiva"]
+            avion["filas"],
+            avion["filas_ejecutiva"],
+            data["precio_ejecutiva"],
+            avion["id"]
         )
 
     def aeropuertos(self):
@@ -144,8 +149,8 @@ class VueloService:
         valores = self.valores(data)
         vuelo = self.db.execute("""
             INSERT INTO vuelos (origen_id, destino_id, fecha, hora_salida, hora_llegada, precio, filas,
-                                filas_ejecutiva, precio_ejecutiva, asientos_disponibles)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                                filas_ejecutiva, precio_ejecutiva, avion_id, asientos_disponibles)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             RETURNING id
         """, valores + (valores[self.IDX_FILAS] * self.ASIENTOS_POR_FILA,), returning=True)
         return {"mensaje": "Vuelo creado", "vuelo": self.obtener(vuelo["id"])[0]}, 201
@@ -168,7 +173,7 @@ class VueloService:
         if valores[self.IDX_FILAS] < fila_maxima:
             return {
                 "error": "Datos inválidos",
-                "errores": [{"campo": "filas", "error": f"Hay asientos reservados hasta la fila {fila_maxima}"}]
+                "errores": [{"campo": "avion_id", "error": f"Hay asientos reservados hasta la fila {fila_maxima}: elija un avión con al menos esas filas"}]
             }, 400
 
         disponibles = valores[self.IDX_FILAS] * self.ASIENTOS_POR_FILA - len(ocupados)
@@ -176,7 +181,7 @@ class VueloService:
             UPDATE vuelos
             SET origen_id = %s, destino_id = %s, fecha = %s, hora_salida = %s, hora_llegada = %s,
                 precio = %s, filas = %s, filas_ejecutiva = %s, precio_ejecutiva = %s,
-                asientos_disponibles = %s, version = version + 1
+                avion_id = %s, asientos_disponibles = %s, version = version + 1
             WHERE id = %s AND version = %s
             RETURNING id
         """, valores + (disponibles, vuelo_id, data["version"]), returning=True)

@@ -1,5 +1,5 @@
 DROP VIEW IF EXISTS vuelos_detalle;
-DROP TABLE IF EXISTS reserva_asientos, tokens, reservas, vuelos, aeropuertos, paises, rol_permisos, permisos, usuarios, roles CASCADE;
+DROP TABLE IF EXISTS reserva_asientos, tokens, reservas, vuelos, aviones, aeropuertos, paises, rol_permisos, permisos, usuarios, roles CASCADE;
 
 CREATE TABLE roles (
     id          SERIAL PRIMARY KEY,
@@ -56,6 +56,14 @@ CREATE TABLE aeropuertos (
 
 CREATE INDEX idx_aeropuertos_pais ON aeropuertos(pais_id);
 
+CREATE TABLE aviones (
+    id              SERIAL PRIMARY KEY,
+    modelo          VARCHAR(60) NOT NULL UNIQUE,
+    filas           INT         NOT NULL CHECK (filas BETWEEN 1 AND 40),
+    filas_ejecutiva INT         NOT NULL,
+    CONSTRAINT aviones_filas_ejecutiva_valida CHECK (filas_ejecutiva BETWEEN 0 AND filas)
+);
+
 CREATE TABLE vuelos (
     id                   SERIAL PRIMARY KEY,
     origen_id            INT           NOT NULL REFERENCES aeropuertos(id),
@@ -68,6 +76,7 @@ CREATE TABLE vuelos (
     asientos_disponibles INT           NOT NULL CHECK (asientos_disponibles >= 0),
     filas_ejecutiva      INT           NOT NULL,
     precio_ejecutiva     NUMERIC(10,2) NOT NULL CHECK (precio_ejecutiva > 0),
+    avion_id             INT           REFERENCES aviones(id),
     version              INT           NOT NULL DEFAULT 1,
     CONSTRAINT vuelos_ruta_distinta CHECK (origen_id <> destino_id),
     CONSTRAINT vuelos_filas_ejecutiva_valida CHECK (filas_ejecutiva BETWEEN 0 AND filas)
@@ -103,6 +112,7 @@ CREATE INDEX idx_tokens_usuario   ON tokens(usuario_id);
 CREATE INDEX idx_vuelos_busqueda  ON vuelos(origen_id, destino_id, fecha);
 CREATE INDEX idx_reservas_usuario ON reservas(usuario_id);
 CREATE INDEX idx_reservas_vuelo   ON reservas(vuelo_id);
+CREATE INDEX idx_vuelos_avion     ON vuelos(avion_id);
 CREATE INDEX idx_reservas_viaje   ON reservas(viaje_id);
 CREATE INDEX idx_reserva_asientos_reserva ON reserva_asientos(reserva_id);
 CREATE UNIQUE INDEX uq_asiento_ocupado ON reserva_asientos(vuelo_id, asiento) WHERE estado = 'ocupado';
@@ -172,55 +182,66 @@ FROM (VALUES
 ) AS a(codigo, ciudad, nombre, pais, latitud, longitud)
 JOIN paises p ON p.codigo = a.pais;
 
+INSERT INTO aviones (modelo, filas, filas_ejecutiva) VALUES
+('ATR 72-600', 12, 0),
+('Avioneta de pruebas', 2, 1),
+('Embraer E190', 20, 3),
+('Airbus A320', 25, 4),
+('Boeing 737-800', 28, 4),
+('Airbus A321', 30, 4),
+('Boeing 787-8', 35, 4),
+('Boeing 787-9', 40, 6);
+
 -- Rutas de ejemplo: se generan desde el 16/11/2026 hasta el 15/12/2026.
 -- "cada" = cada cuántos días sale el vuelo (1 = diario, 2 = día por medio).
-INSERT INTO vuelos (origen_id, destino_id, fecha, hora_salida, hora_llegada, precio, filas, asientos_disponibles, filas_ejecutiva, precio_ejecutiva)
-SELECT ao.id, ad.id, d::date, r.salida::time, r.llegada::time, r.precio, r.filas, r.filas * 6,
-       CASE WHEN r.filas >= 25 THEN 4 WHEN r.filas >= 10 THEN 3 ELSE 1 END, ROUND(r.precio * 2.5, 2)
+INSERT INTO vuelos (origen_id, destino_id, fecha, hora_salida, hora_llegada, precio, filas, asientos_disponibles, filas_ejecutiva, precio_ejecutiva, avion_id)
+SELECT ao.id, ad.id, d::date, r.salida::time, r.llegada::time, r.precio, av.filas, av.filas * 6,
+       av.filas_ejecutiva, ROUND(r.precio * 2.5, 2), av.id
 FROM (VALUES
     -- Nacionales
-    ('UIO', 'GYE', '09:45', '10:40',  89.00, 20, 1),
-    ('UIO', 'GYE', '18:30', '19:25',  95.00, 20, 1),
-    ('GYE', 'UIO', '07:30', '08:25',  89.00, 20, 1),
-    ('GYE', 'UIO', '20:00', '20:55',  95.00, 20, 1),
-    ('UIO', 'CUE', '12:20', '13:15',  99.00, 20, 1),
-    ('CUE', 'UIO', '18:00', '18:55',  99.00, 20, 1),
-    ('UIO', 'MEC', '14:50', '15:40',  79.00, 20, 1),
-    ('MEC', 'UIO', '16:10', '17:00',  79.00, 20, 1),
-    ('UIO', 'LOH', '11:00', '12:05', 109.00, 20, 2),
-    ('LOH', 'UIO', '14:00', '15:05', 109.00, 20, 2),
-    ('UIO', 'GPS', '06:00', '08:30', 320.00, 25, 2),
-    ('GPS', 'UIO', '10:30', '13:00', 320.00, 25, 2),
-    ('GYE', 'GPS', '10:00', '11:45', 280.00, 25, 2),
-    ('GPS', 'GYE', '13:00', '14:45', 280.00, 25, 2),
+    ('UIO', 'GYE', '09:45', '10:40',  89.00, 'Embraer E190', 1),
+    ('UIO', 'GYE', '18:30', '19:25',  95.00, 'Embraer E190', 1),
+    ('GYE', 'UIO', '07:30', '08:25',  89.00, 'Embraer E190', 1),
+    ('GYE', 'UIO', '20:00', '20:55',  95.00, 'Embraer E190', 1),
+    ('UIO', 'CUE', '12:20', '13:15',  99.00, 'Embraer E190', 1),
+    ('CUE', 'UIO', '18:00', '18:55',  99.00, 'Embraer E190', 1),
+    ('UIO', 'MEC', '14:50', '15:40',  79.00, 'Embraer E190', 1),
+    ('MEC', 'UIO', '16:10', '17:00',  79.00, 'Embraer E190', 1),
+    ('UIO', 'LOH', '11:00', '12:05', 109.00, 'Embraer E190', 2),
+    ('LOH', 'UIO', '14:00', '15:05', 109.00, 'Embraer E190', 2),
+    ('UIO', 'GPS', '06:00', '08:30', 320.00, 'Airbus A320', 2),
+    ('GPS', 'UIO', '10:30', '13:00', 320.00, 'Airbus A320', 2),
+    ('GYE', 'GPS', '10:00', '11:45', 280.00, 'Airbus A320', 2),
+    ('GPS', 'GYE', '13:00', '14:45', 280.00, 'Airbus A320', 2),
     -- Internacionales
-    ('UIO', 'BOG', '08:00', '09:25', 189.00, 25, 1),
-    ('BOG', 'UIO', '10:30', '11:55', 189.00, 25, 1),
-    ('UIO', 'LIM', '13:00', '15:10', 215.00, 25, 1),
-    ('LIM', 'UIO', '16:00', '18:10', 215.00, 25, 1),
-    ('UIO', 'PTY', '06:15', '08:35', 259.00, 28, 1),
-    ('PTY', 'UIO', '09:30', '11:50', 259.00, 28, 1),
-    ('UIO', 'MIA', '07:00', '11:30', 389.00, 30, 1),
-    ('MIA', 'UIO', '12:30', '17:00', 389.00, 30, 1),
-    ('UIO', 'JFK', '09:15', '15:00', 459.00, 30, 2),
-    ('JFK', 'UIO', '17:30', '23:00', 459.00, 30, 2),
-    ('UIO', 'YYZ', '08:30', '15:30', 599.00, 30, 2),
-    ('YYZ', 'UIO', '09:00', '17:00', 599.00, 30, 2),
-    ('UIO', 'MEX', '09:00', '13:20', 399.00, 28, 2),
-    ('MEX', 'UIO', '15:00', '22:30', 399.00, 28, 2),
-    ('UIO', 'MAD', '22:00', '15:30', 849.00, 35, 2),
-    ('MAD', 'UIO', '12:00', '16:30', 849.00, 35, 2)
-) AS r(origen, destino, salida, llegada, precio, filas, cada)
+    ('UIO', 'BOG', '08:00', '09:25', 189.00, 'Airbus A320', 1),
+    ('BOG', 'UIO', '10:30', '11:55', 189.00, 'Airbus A320', 1),
+    ('UIO', 'LIM', '13:00', '15:10', 215.00, 'Airbus A320', 1),
+    ('LIM', 'UIO', '16:00', '18:10', 215.00, 'Airbus A320', 1),
+    ('UIO', 'PTY', '06:15', '08:35', 259.00, 'Boeing 737-800', 1),
+    ('PTY', 'UIO', '09:30', '11:50', 259.00, 'Boeing 737-800', 1),
+    ('UIO', 'MIA', '07:00', '11:30', 389.00, 'Airbus A321', 1),
+    ('MIA', 'UIO', '12:30', '17:00', 389.00, 'Airbus A321', 1),
+    ('UIO', 'JFK', '09:15', '15:00', 459.00, 'Airbus A321', 2),
+    ('JFK', 'UIO', '17:30', '23:00', 459.00, 'Airbus A321', 2),
+    ('UIO', 'YYZ', '08:30', '15:30', 599.00, 'Airbus A321', 2),
+    ('YYZ', 'UIO', '09:00', '17:00', 599.00, 'Airbus A321', 2),
+    ('UIO', 'MEX', '09:00', '13:20', 399.00, 'Boeing 737-800', 2),
+    ('MEX', 'UIO', '15:00', '22:30', 399.00, 'Boeing 737-800', 2),
+    ('UIO', 'MAD', '22:00', '15:30', 849.00, 'Boeing 787-8', 2),
+    ('MAD', 'UIO', '12:00', '16:30', 849.00, 'Boeing 787-8', 2)
+) AS r(origen, destino, salida, llegada, precio, avion, cada)
 JOIN aeropuertos ao ON ao.codigo = r.origen
 JOIN aeropuertos ad ON ad.codigo = r.destino
+JOIN aviones av     ON av.modelo = r.avion
 CROSS JOIN generate_series(date '2026-11-16', date '2026-12-15', interval '1 day') AS d
 WHERE (d::date - date '2026-11-16') % r.cada = 0;
 
 -- Vuelo pequeño (2 filas, 12 asientos) para probar concurrencia y vuelo agotado.
-INSERT INTO vuelos (origen_id, destino_id, fecha, hora_salida, hora_llegada, precio, filas, asientos_disponibles, filas_ejecutiva, precio_ejecutiva)
-SELECT ao.id, ad.id, DATE '2026-12-15', TIME '20:00', TIME '20:55', 95.00, 2, 12, 1, 237.50
-FROM aeropuertos ao, aeropuertos ad
-WHERE ao.codigo = 'UIO' AND ad.codigo = 'GYE';
+INSERT INTO vuelos (origen_id, destino_id, fecha, hora_salida, hora_llegada, precio, filas, asientos_disponibles, filas_ejecutiva, precio_ejecutiva, avion_id)
+SELECT ao.id, ad.id, DATE '2026-12-15', TIME '20:00', TIME '20:55', 95.00, av.filas, av.filas * 6, av.filas_ejecutiva, 237.50, av.id
+FROM aeropuertos ao, aeropuertos ad, aviones av
+WHERE ao.codigo = 'UIO' AND ad.codigo = 'GYE' AND av.modelo = 'Avioneta de pruebas';
 
 CREATE VIEW vuelos_detalle WITH (security_invoker = true) AS
 SELECT v.*,
@@ -228,16 +249,19 @@ SELECT v.*,
        ao.latitud AS origen_latitud,  ao.longitud AS origen_longitud,
        ad.ciudad AS destino, ad.codigo AS destino_codigo, pd.nombre AS destino_pais,
        ad.latitud AS destino_latitud, ad.longitud AS destino_longitud,
+       av.modelo AS avion,
        (SELECT COUNT(*)::int FROM reserva_asientos ra
          WHERE ra.vuelo_id = v.id AND ra.estado = 'ocupado' AND ra.clase = 'ejecutiva') AS ocupados_ejecutiva
 FROM vuelos v
 JOIN aeropuertos ao ON ao.id = v.origen_id
 JOIN paises po      ON po.id = ao.pais_id
 JOIN aeropuertos ad ON ad.id = v.destino_id
-JOIN paises pd      ON pd.id = ad.pais_id;
+JOIN paises pd      ON pd.id = ad.pais_id
+LEFT JOIN aviones av ON av.id = v.avion_id;
 
 ALTER TABLE roles            ENABLE ROW LEVEL SECURITY;
 ALTER TABLE paises           ENABLE ROW LEVEL SECURITY;
+ALTER TABLE aviones          ENABLE ROW LEVEL SECURITY;
 ALTER TABLE aeropuertos      ENABLE ROW LEVEL SECURITY;
 ALTER TABLE permisos         ENABLE ROW LEVEL SECURITY;
 ALTER TABLE rol_permisos     ENABLE ROW LEVEL SECURITY;

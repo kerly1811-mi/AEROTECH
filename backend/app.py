@@ -108,6 +108,12 @@ def mapa_asientos(vuelo_id):
     return asiento_service.mapa(vuelo_id)
 
 
+@app.route("/api/aviones", methods=["GET"])
+@autenticacion_service.token_requerido("vuelos.crear")
+def listar_aviones():
+    return vuelo_service.aviones()
+
+
 @app.route("/api/destinos", methods=["GET"])
 @autenticacion_service.token_requerido("vuelos.ver")
 def destinos_promocionales():

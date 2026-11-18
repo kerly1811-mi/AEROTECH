@@ -51,6 +51,7 @@ APE4-PRACTICA/
 | `tokens` | Tokens JWT emitidos, con expiración y estado |
 | `paises` | Catálogo de países |
 | `aeropuertos` | Catálogo de aeropuertos (ciudad, código IATA, país) |
+| `aviones` | Catálogo de aviones precargados (modelo, filas, filas de clase Ejecutiva) |
 | `vuelos` | Vuelos entre dos aeropuertos (`origen_id`, `destino_id`, con columna `version`) |
 | `reservas` | Reservas de los usuarios (con columna `version`) |
 
@@ -90,6 +91,7 @@ APE4-PRACTICA/
 | Método | Endpoint | Permiso |
 |---|---|---|
 | GET | `/api/aeropuertos` | `vuelos.ver` |
+| GET | `/api/aviones` | `vuelos.crear` — catálogo de aviones (modelo, filas, filas de Ejecutiva); el vuelo se crea con `avion_id` y de ahí salen sus asientos |
 | GET | `/api/destinos` | `vuelos.ver` — destinos con vuelos próximos y su precio más bajo (portada) |
 | GET | `/api/vuelos?origen_id=&destino_id=&fecha=` | `vuelos.ver` |
 | GET | `/api/vuelos/{id}` | `vuelos.ver` |
