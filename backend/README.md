@@ -223,6 +223,7 @@ DEMORA_SEGUNDOS=0
 | `DATABASE_URL` | Cadena de conexión de Supabase (Transaction pooler) |
 | `JWT_SECRET` | Clave para firmar los tokens |
 | `JWT_EXP_MINUTOS` | Minutos de validez del token |
+| `JWT_EXP_SEGUNDOS` | (Opcional) Segundos de validez; tiene prioridad sobre `JWT_EXP_MINUTOS`. Útil para demostrar el cierre automático de sesión (por ejemplo `20`) |
 | `DEMORA_SEGUNDOS` | Demora simulada para pruebas de concurrencia (0 en producción) |
 
 Verificar: `http://127.0.0.1:5000/api/health`

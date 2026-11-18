@@ -11,6 +11,8 @@ class AutenticacionService:
         self.db = db
         self.secret = os.getenv("JWT_SECRET")
         self.exp_minutos = int(os.getenv("JWT_EXP_MINUTOS", 30))
+        # JWT_EXP_SEGUNDOS permite tiempos muy cortos (por ejemplo 20) para demostrar la expiración.
+        self.exp_segundos = int(os.getenv("JWT_EXP_SEGUNDOS") or self.exp_minutos * 60)
 
     def hash_password(self, password):
         return generate_password_hash(password, method="pbkdf2:sha256")
@@ -27,7 +29,7 @@ class AutenticacionService:
         return [f["codigo"] for f in filas]
 
     def generar_token(self, usuario):
-        expiracion = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(minutes=self.exp_minutos)
+        expiracion = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(seconds=self.exp_segundos)
         token = jwt.encode(
             {"sub": str(usuario["id"]), "rol": usuario["rol"], "exp": expiracion},
             self.secret,
@@ -62,6 +64,7 @@ class AutenticacionService:
             "mensaje": "Login correcto",
             "token": token,
             "expiracion": expiracion,
+            "expira_en_segundos": self.exp_segundos,
             "usuario": {
                 "id": usuario["id"],
                 "nombre": usuario["nombre"],
