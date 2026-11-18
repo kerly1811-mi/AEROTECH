@@ -12,7 +12,9 @@ class AutenticacionService:
         self.secret = os.getenv("JWT_SECRET")
         self.exp_minutos = int(os.getenv("JWT_EXP_MINUTOS", 30))
         # JWT_EXP_SEGUNDOS permite tiempos muy cortos (por ejemplo 20) para demostrar la expiración.
-        self.exp_segundos = int(os.getenv("JWT_EXP_SEGUNDOS") or self.exp_minutos * 60)
+        # TEMPORAL (demostración): 20 s por defecto. Para volver a lo normal, cambiar "20" por
+        # self.exp_minutos * 60 o definir JWT_EXP_SEGUNDOS en el entorno.
+        self.exp_segundos = int(os.getenv("JWT_EXP_SEGUNDOS") or 20)
 
     def hash_password(self, password):
         return generate_password_hash(password, method="pbkdf2:sha256")
