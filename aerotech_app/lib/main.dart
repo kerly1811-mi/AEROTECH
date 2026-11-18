@@ -1,4 +1,5 @@
 import 'package:aerotech_app/config.dart';
+import 'package:aerotech_app/pages/landing_page.dart';
 import 'package:aerotech_app/pages/login_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -73,7 +74,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF1565C0)),
         useMaterial3: true,
       ),
-      home: const LoginPage(),
+      home: const LandingPage(),
     );
   }
 }

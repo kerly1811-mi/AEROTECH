@@ -103,10 +103,14 @@ class _LoginPageState extends State<LoginPage> {
             children: [
               Text(
                 'Bienvenido',
-                style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
+                style: Theme.of(context).textTheme.headlineSmall
+                    ?.copyWith(fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 4),
-              Text('Inicia sesión para reservar tu vuelo', style: TextStyle(color: Colors.grey[700])),
+              Text(
+                'Inicia sesión para reservar tu vuelo',
+                style: TextStyle(color: Colors.grey[700]),
+              ),
               const SizedBox(height: 24),
               TextFormField(
                 controller: correoController,
@@ -114,7 +118,9 @@ class _LoginPageState extends State<LoginPage> {
                 decoration: InputDecoration(
                   labelText: 'Correo',
                   prefixIcon: const Icon(Icons.alternate_email),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
                 ),
                 validator: _validateCorreo,
               ),
@@ -125,9 +131,13 @@ class _LoginPageState extends State<LoginPage> {
                 decoration: InputDecoration(
                   labelText: 'Contraseña',
                   prefixIcon: const Icon(Icons.lock_outline),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
                   suffixIcon: IconButton(
-                    icon: Icon(_ocultar ? Icons.visibility : Icons.visibility_off),
+                    icon: Icon(
+                      _ocultar ? Icons.visibility : Icons.visibility_off,
+                    ),
                     onPressed: () => setState(() => _ocultar = !_ocultar),
                   ),
                 ),
@@ -140,16 +150,27 @@ class _LoginPageState extends State<LoginPage> {
                 child: FilledButton(
                   style: FilledButton.styleFrom(
                     backgroundColor: const Color(0xFF0B2A8A),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
                   ),
                   onPressed: _isLoading ? null : _login,
                   child: _isLoading
                       ? const SizedBox(
                           height: 22,
                           width: 22,
-                          child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white),
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2.5,
+                            color: Colors.white,
+                          ),
                         )
-                      : const Text('Iniciar sesión', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
+                      : const Text(
+                          'Iniciar sesión',
+                          style: TextStyle(
+                            fontSize: 17,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                 ),
               ),
               if (_isLoading)
@@ -167,7 +188,10 @@ class _LoginPageState extends State<LoginPage> {
                   context,
                   MaterialPageRoute(builder: (context) => const RegistroPage()),
                 ),
-                child: Text('¿No tienes cuenta? Regístrate', style: TextStyle(color: colors.primary)),
+                child: Text(
+                  '¿No tienes cuenta? Regístrate',
+                  style: TextStyle(color: colors.primary),
+                ),
               ),
             ],
           ),
@@ -179,7 +203,9 @@ class _LoginPageState extends State<LoginPage> {
   Widget _portada({required bool ancho}) {
     return Column(
       mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: ancho ? CrossAxisAlignment.start : CrossAxisAlignment.center,
+      crossAxisAlignment: ancho
+          ? CrossAxisAlignment.start
+          : CrossAxisAlignment.center,
       children: [
         LogoAeroTech(tamano: ancho ? 72 : 56, claro: true),
         const SizedBox(height: 14),
@@ -227,44 +253,63 @@ class _LoginPageState extends State<LoginPage> {
             colors: [Color(0xFF061A47), Color(0xFF0B3B9E), Color(0xFF1565C0)],
           ),
         ),
-        child: LayoutBuilder(
-          builder: (context, c) {
-            final ancho = c.maxWidth >= 900;
+        child: Stack(
+          children: [
+            Positioned.fill(
+              child: LayoutBuilder(
+                builder: (context, c) {
+                  final ancho = c.maxWidth >= 900;
 
-            if (ancho) {
-              return Center(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(40),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      Flexible(child: _portada(ancho: true)),
-                      const SizedBox(width: 64),
-                      SizedBox(width: 420, child: _formulario()),
-                    ],
-                  ),
-                ),
-              );
-            }
+                  if (ancho) {
+                    return Center(
+                      child: SingleChildScrollView(
+                        padding: const EdgeInsets.all(40),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: [
+                            Flexible(child: _portada(ancho: true)),
+                            const SizedBox(width: 64),
+                            SizedBox(width: 420, child: _formulario()),
+                          ],
+                        ),
+                      ),
+                    );
+                  }
 
-            return Center(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(20),
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 440),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      _portada(ancho: false),
-                      const SizedBox(height: 24),
-                      _formulario(),
-                    ],
+                  return Center(
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.all(20),
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 440),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            _portada(ancho: false),
+                            const SizedBox(height: 24),
+                            _formulario(),
+                          ],
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+            if (Navigator.canPop(context))
+              Positioned(
+                top: 8,
+                left: 8,
+                child: SafeArea(
+                  child: TextButton.icon(
+                    style: TextButton.styleFrom(foregroundColor: Colors.white),
+                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(Icons.arrow_back),
+                    label: const Text('Inicio'),
                   ),
                 ),
               ),
-            );
-          },
+          ],
         ),
       ),
     );
